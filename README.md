@@ -5,6 +5,7 @@
 
 
 ## News
+- **2024.07.01** DAL is accepted to ECCV24.
 - **2023.11.08** Support DAL for 3D object detection with LiDAR-camera fusion. [[Arxiv](https://arxiv.org/abs/2311.07152)]
 
 - [History](./docs/en/news.md)
