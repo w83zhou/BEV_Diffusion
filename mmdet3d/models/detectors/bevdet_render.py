@@ -28,7 +28,6 @@ from collections import Counter
 import cv2
 import matplotlib.pyplot as plt
 import os
-import kornia
 import open3d as o3d
 from ..backbones.diffusion.mv_diffuser import MultiViewDiffuser
 
