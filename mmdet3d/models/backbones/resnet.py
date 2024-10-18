@@ -7,7 +7,6 @@ from mmcv.cnn.bricks.conv_module import ConvModule
 from mmdet.models import BACKBONES
 from mmdet.models.backbones.resnet import BasicBlock, Bottleneck
 
-
 @BACKBONES.register_module()
 class CustomResNet(nn.Module):
 

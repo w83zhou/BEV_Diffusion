@@ -1231,28 +1231,60 @@ class BEVAug(object):
             gt_boxes[:, :3] = gt_boxes[:, :3] + tran_bda
         return gt_boxes, rot_mat
 
+    def bev_transform_without_gt_boxes(self, rotate_angle, scale_ratio, flip_dx,
+                      flip_dy):
+        rotate_angle = torch.tensor(rotate_angle / 180 * np.pi)
+        rot_sin = torch.sin(rotate_angle)
+        rot_cos = torch.cos(rotate_angle)
+        rot_mat = torch.Tensor([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0],
+                                [0, 0, 1]])
+        scale_mat = torch.Tensor([[scale_ratio, 0, 0], [0, scale_ratio, 0],
+                                  [0, 0, scale_ratio]])
+        flip_mat = torch.Tensor([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        if flip_dx:
+            flip_mat = flip_mat @ torch.Tensor([[-1, 0, 0], [0, 1, 0],
+                                                [0, 0, 1]])
+        if flip_dy:
+            flip_mat = flip_mat @ torch.Tensor([[1, 0, 0], [0, -1, 0],
+                                                [0, 0, 1]])
+        rot_mat = flip_mat @ (scale_mat @ rot_mat)
+        
+        return rot_mat
+
     def __call__(self, results):
-        gt_boxes = results['gt_bboxes_3d'].tensor
-        gt_boxes[:,2] = gt_boxes[:,2] + 0.5*gt_boxes[:,5]
-        rotate_bda, scale_bda, flip_dx, flip_dy, tran_bda = \
-            self.sample_bda_augmentation()
         bda_mat = torch.zeros(4, 4)
-        bda_mat[3, 3] = 1
-        gt_boxes, bda_rot = self.bev_transform(gt_boxes, rotate_bda, scale_bda,
-                                               flip_dx, flip_dy, tran_bda)
-        if 'points' in results:
-            points = results['points'].tensor
-            points_aug = (bda_rot @ points[:, :3].unsqueeze(-1)).squeeze(-1)
-            points[:,:3] = points_aug + tran_bda
-            points = results['points'].new_point(points)
-            results['points'] = points
-        bda_mat[:3, :3] = bda_rot
-        bda_mat[:3, 3] = torch.from_numpy(tran_bda)
-        if len(gt_boxes) == 0:
-            gt_boxes = torch.zeros(0, 9)
-        results['gt_bboxes_3d'] = \
-            LiDARInstance3DBoxes(gt_boxes, box_dim=gt_boxes.shape[-1],
-                                 origin=(0.5, 0.5, 0.5))
+        if 'gt_bboxes_3d' in results:
+            gt_boxes = results['gt_bboxes_3d'].tensor
+            gt_boxes[:,2] = gt_boxes[:,2] + 0.5*gt_boxes[:,5]
+            rotate_bda, scale_bda, flip_dx, flip_dy, tran_bda = \
+                self.sample_bda_augmentation()
+            #bda_mat = torch.zeros(4, 4)
+            bda_mat[3, 3] = 1
+            gt_boxes, bda_rot = self.bev_transform(gt_boxes, rotate_bda, scale_bda,
+                                                flip_dx, flip_dy, tran_bda)
+            if 'points' in results:
+                points = results['points'].tensor
+                points_aug = (bda_rot @ points[:, :3].unsqueeze(-1)).squeeze(-1)
+                points[:,:3] = points_aug + tran_bda
+                points = results['points'].new_point(points)
+                results['points'] = points
+            bda_mat[:3, :3] = bda_rot
+            bda_mat[:3, 3] = torch.from_numpy(tran_bda)
+            if len(gt_boxes) == 0:
+                gt_boxes = torch.zeros(0, 9)
+            results['gt_bboxes_3d'] = \
+                LiDARInstance3DBoxes(gt_boxes, box_dim=gt_boxes.shape[-1],
+                                    origin=(0.5, 0.5, 0.5))
+        else:   
+            rotate_bda, scale_bda, flip_dx, flip_dy, tran_bda = \
+            self.sample_bda_augmentation()
+            bda_mat = torch.zeros(4, 4)
+            bda_mat[3, 3] = 1
+            bda_rot = self.bev_transform_without_gt_boxes(rotate_bda, scale_bda,
+                                                    flip_dx, flip_dy)
+            bda_mat[:3, :3] = bda_rot
+            bda_mat[:3, 3] = torch.from_numpy(tran_bda)
+
         if 'img_inputs' in results:
             imgs, rots, trans, intrins = results['img_inputs'][:4]
             post_rots, post_trans = results['img_inputs'][4:]

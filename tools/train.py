@@ -21,6 +21,7 @@ from mmdet3d.models import build_model
 from mmdet3d.utils import collect_env, get_root_logger
 from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
+from hydra import compose, initialize
 
 try:
     # If mmdet version > 2.20.0, setup_multi_processes would be imported and
@@ -29,6 +30,10 @@ try:
 except ImportError:
     from mmdet3d.utils import setup_multi_processes
 
+def load_hydra_cfg(config_path, config_name, version_base=None, overrides=[]):
+    with initialize(version_base=version_base, config_path=config_path):
+        cfg = compose(config_name=config_name, overrides=overrides)
+    return cfg
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -133,7 +138,7 @@ def main():
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.join('./work_dirs',
+        cfg.work_dir = osp.join('./save_d',
                                 osp.splitext(osp.basename(args.config))[0])
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
@@ -215,6 +220,12 @@ def main():
     cfg.seed = seed
     meta['seed'] = seed
     meta['exp_name'] = osp.basename(args.config)
+
+    # For diffusion
+    hydra_cfg = load_hydra_cfg(
+        config_path="../configs/bevdet_vq_render/configs", config_name="config",
+        overrides=['+exp=224x400', "runner=8gpus"])
+    cfg.model.multi_view_diffuser_cfg = hydra_cfg
 
     model = build_model(
         cfg.model,

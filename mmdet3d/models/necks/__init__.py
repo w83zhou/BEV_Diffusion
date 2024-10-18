@@ -8,9 +8,10 @@ from .pointnet2_fp_neck import PointNetFPNeck
 from .second_fpn import SECONDFPN
 from .view_transformer import LSSViewTransformer, LSSViewTransformerBEVDepth, \
     LSSViewTransformerBEVStereo
-
+from .vq_layers import VectorQuantizer, VQDecoder, VQEncoder, BidirectionalTransformer
 __all__ = [
     'FPN', 'SECONDFPN', 'OutdoorImVoxelNeck', 'PointNetFPNeck', 'DLANeck',
     'LSSViewTransformer', 'CustomFPN', 'FPN_LSS', 'LSSViewTransformerBEVDepth',
-    'LSSViewTransformerBEVStereo'
+    'LSSViewTransformerBEVStereo', 'VectorQuantizer', 'VQDecoder', 'VQEncoder',
+    'BidirectionalTransformer'
 ]

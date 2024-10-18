@@ -101,13 +101,13 @@ def nuscenes_data_prep(root_path, info_prefix, version, max_sweeps=10):
         root_path, info_prefix, version=version, max_sweeps=max_sweeps)
 
 
-def add_ann_adj_info(extra_tag):
+def add_ann_adj_info(root_path, extra_tag):
     nuscenes_version = 'v1.0-trainval'
-    dataroot = './data/nuscenes/'
+    dataroot = root_path
     nuscenes = NuScenes(nuscenes_version, dataroot)
     for set in ['train', 'val']:
         dataset = pickle.load(
-            open('./data/nuscenes/%s_infos_%s.pkl' % (extra_tag, set), 'rb'))
+            open(root_path + '/%s_infos_%s.pkl' % (extra_tag, set), 'rb'))
         for id in range(len(dataset['infos'])):
             if id % 10 == 0:
                 print('%d/%d' % (id, len(dataset['infos'])))
@@ -128,8 +128,8 @@ def add_ann_adj_info(extra_tag):
 
             scene = nuscenes.get('scene', sample['scene_token'])
             dataset['infos'][id]['occ_path'] = \
-                './data/nuscenes/gts/%s/%s'%(scene['name'], info['token'])
-        with open('./data/nuscenes/%s_infos_%s.pkl' % (extra_tag, set),
+                root_path + '/gts/%s/%s'%(scene['name'], info['token'])
+        with open(root_path + '/%s_infos_%s.pkl' % (extra_tag, set),
                   'wb') as fid:
             pickle.dump(dataset, fid)
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     dataset = 'nuscenes'
     version = 'v1.0-trainval'
     # version = 'v1.0-test'
-    root_path = './data/nuscenes'
+    root_path = '/data/zwding/BEVDet/mmdetection3d/data/nuscenes'
     extra_tag = 'bevdetv3-nuscenes'
     nuscenes_data_prep(
         root_path=root_path,
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         max_sweeps=10)
 
     # print('add_ann_infos')
-    add_ann_adj_info(extra_tag)
+    add_ann_adj_info(root_path, extra_tag)
 
     create_groundtruth_database('NuScenesDataset',
                                 root_path,

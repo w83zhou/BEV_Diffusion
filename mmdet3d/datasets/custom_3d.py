@@ -227,9 +227,11 @@ class Custom3DDataset(Dataset):
             return None
         self.pre_pipeline(input_dict)
         example = self.pipeline(input_dict)
-        if self.filter_empty_gt and \
-                (example is None or
-                    ~(example['gt_labels_3d']._data != -1).any()):
+        # comment out the following code to avoid filtering empty gt
+        # if self.filter_empty_gt and \
+        #         (example is None or
+        #             ~(example['gt_labels_3d']._data != -1).any()):
+        if self.filter_empty_gt and (example is None):
             return None
         return example
 

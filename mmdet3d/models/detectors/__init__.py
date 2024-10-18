@@ -21,12 +21,12 @@ from .smoke_mono3d import SMOKEMono3D
 from .ssd3dnet import SSD3DNet
 from .votenet import VoteNet
 from .voxelnet import VoxelNet
-
+from .bevdet_render import BEVDet_Render
 __all__ = [
     'Base3DDetector', 'VoxelNet', 'DynamicVoxelNet', 'MVXTwoStageDetector',
     'DynamicMVXFasterRCNN', 'MVXFasterRCNN', 'PartA2', 'VoteNet', 'H3DNet',
     'CenterPoint', 'SSD3DNet', 'ImVoteNet', 'SingleStageMono3DDetector',
     'FCOSMono3D', 'ImVoxelNet', 'GroupFree3DNet', 'PointRCNN', 'SMOKEMono3D',
     'MinkSingleStage3DDetector', 'SASSD', 'BEVDet', 'BEVDet4D', 'BEVDepth4D',
-    'BEVDetTRT', 'BEVStereo4D', 'BEVStereo4DOCC'
+    'BEVDetTRT', 'BEVStereo4D', 'BEVStereo4DOCC', 'BEVDet_Render'
 ]
