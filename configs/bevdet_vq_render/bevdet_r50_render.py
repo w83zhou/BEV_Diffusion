@@ -21,9 +21,9 @@ data_config = {
     'src_size': (900, 1600),
 
     # Augmentation
-    'resize': (-0.06, 0.11),
-    'rot': (-5.4, 5.4),
-    'flip': True,
+    'resize': (0.0, 0.0),
+    'rot': (0.0, 0.0),
+    'flip': False,
     'crop_h': (0.0, 0.0),
     'resize_test': 0.00,
 }
@@ -159,14 +159,14 @@ model = dict(
 
 # Data
 dataset_type = 'NuScenesDataset'
-data_root = '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/'
+data_root = './data/nuscenes/'
 file_client_args = dict(backend='disk')
 
 bda_aug_conf = dict(
-    rot_lim=(-22.5, 22.5),
-    scale_lim=(0.95, 1.05),
-    flip_dx_ratio=0.5,
-    flip_dy_ratio=0.5)
+    rot_lim=(0.0, 0.0),
+    scale_lim=(0.0, 0.0),
+    flip_dx_ratio=0.0,
+    flip_dy_ratio=0.0)
 
 train_pipeline = [
     dict(
@@ -295,6 +295,8 @@ custom_hooks = [
 ]
 
 # fp16 = dict(loss_scale='dynamic')
+
+load_from = None
 
 find_unused_parameters = True
 
