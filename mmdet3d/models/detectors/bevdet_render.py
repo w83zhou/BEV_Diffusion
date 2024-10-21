@@ -8,7 +8,7 @@ from .. import builder
 from .centerpoint import CenterPoint
 from mmdet3d.models.utils.grid_mask import GridMask
 from mmdet.models.backbones.resnet import ResNet
-
+from mmcv.cnn.bricks.conv_module import ConvModule
 import math
 from torch.distributions import Categorical
 from pyquaternion import Quaternion
@@ -69,6 +69,7 @@ class BEVDet_Render(CenterPoint):
                  # VQ-VAE
                  vector_quantizer=None,
                  use_grid_mask=False,
+                 use_vq=False,
                  **kwargs):
         super(BEVDet_Render, self).__init__(**kwargs)
         self.grid_mask = None if not use_grid_mask else \
@@ -80,21 +81,33 @@ class BEVDet_Render(CenterPoint):
                 builder.build_backbone(img_bev_encoder_backbone)
             self.img_bev_encoder_neck = builder.build_neck(img_bev_encoder_neck)
         
-        # # BEV encoder & decoder using swin transformer
-        self.swin_bev_encoder = build_transformer_layer_sequence(swin_bev_encoder)
-        self.swin_bev_decoder = build_transformer_layer_sequence(swin_bev_decoder)
+        self.use_vq = use_vq
 
-        # VQ-VAE
-        self.vector_quantizer = builder.build_neck(vector_quantizer)
-        self.pre_quant = nn.Sequential(nn.Linear(1024, 1024), nn.LayerNorm(1024))
-        self.register_buffer("code_age", torch.zeros(self.vector_quantizer.n_e) * 10000)
-        self.register_buffer("code_usage", torch.zeros(self.vector_quantizer.n_e))
-        self.gamma = gamma_func("cosine")
+        if self.use_vq:
+            # # BEV encoder & decoder using swin transformer
+            self.swin_bev_encoder = build_transformer_layer_sequence(swin_bev_encoder)
+            self.swin_bev_decoder = build_transformer_layer_sequence(swin_bev_decoder)
 
-        self.code_dict = {}
-        for i in range(self.vector_quantizer.n_e):
-            self.code_dict[i] = 0
-        #### VQ-VAE end
+            # VQ-VAE
+            self.vector_quantizer = builder.build_neck(vector_quantizer)
+            self.pre_quant = nn.Sequential(nn.Linear(1024, 1024), nn.LayerNorm(1024))
+            self.register_buffer("code_age", torch.zeros(self.vector_quantizer.n_e) * 10000)
+            self.register_buffer("code_usage", torch.zeros(self.vector_quantizer.n_e))
+            self.gamma = gamma_func("cosine")
+
+            self.code_dict = {}
+            for i in range(self.vector_quantizer.n_e):
+                self.code_dict[i] = 0
+            #### VQ-VAE end
+        else:
+            self.middle_layer = ConvModule(
+                256,
+                128,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=True,
+                conv_cfg=dict(type='Conv2d'))
 
         # Diffusion 
         self.multi_view_diffuser = MultiViewDiffuser(multi_view_diffuser_cfg)
@@ -201,15 +214,27 @@ class BEVDet_Render(CenterPoint):
             points, img=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
         
 
-        # VQ stuff
-        bev_feats = self.swin_bev_encoder(img_feats[0])
-        feats = self.pre_quant(bev_feats)
-        bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
-        bev_vqfeat = self.swin_bev_decoder(bev_quant)
-        code_util = (self.code_age < self.vector_quantizer.dead_limit).sum() / self.code_age.numel()
-        code_uniformity = self.code_usage.topk(10)[0].sum() / self.code_usage.sum()
-        # VQ stuff end
+        losses = dict()
 
+        if self.use_vq:
+            # VQ stuff
+            bev_feats = self.swin_bev_encoder(img_feats[0])
+            feats = self.pre_quant(bev_feats)
+            bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
+            bev_vqfeat = self.swin_bev_decoder(bev_quant)
+            code_util = (self.code_age < self.vector_quantizer.dead_limit).sum() / self.code_age.numel()
+            code_uniformity = self.code_usage.topk(10)[0].sum() / self.code_usage.sum()
+
+            losses.update(
+                {
+                "loss_emb": sum(emb_loss) * 10,
+                "code_util": code_util,
+                "code_uniformity": code_uniformity,
+                }
+            )
+            # VQ stuff end
+        else:
+            bev_vqfeat = self.middle_layer(img_feats[0])
 
         # ## Start diffusion
         camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
@@ -238,8 +263,6 @@ class BEVDet_Render(CenterPoint):
         diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
         ## End diffusion
 
-        
-        losses = dict()
 
         # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
         #                                     gt_labels_3d, img_metas,
@@ -248,9 +271,6 @@ class BEVDet_Render(CenterPoint):
 
         losses.update({
             "loss_diffuser": diffusion_results_loss['loss_diffuser'],
-            "loss_emb": sum(emb_loss) * 10,
-            "code_util": code_util,
-            "code_uniformity": code_uniformity,
         })
 
         return losses

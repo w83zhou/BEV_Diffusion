@@ -209,6 +209,11 @@ class NuScenesDataset(Custom3DDataset):
         self.metadata = data['metadata']
         self.version = self.metadata['version']
         return data_infos
+    
+    def __len__(self):
+        length = super().__len__()
+        # length = 200
+        return length
 
     def get_data_info(self, index):
         """Get data info according to the given index.

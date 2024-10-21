@@ -16,8 +16,8 @@ data_config = {
     ],
     'Ncams':
     6,
-    'input_size': (256, 704),
-    # 'input_size': (64, 176),
+    #'input_size': (256, 704),
+    'input_size': (64, 176),
     'src_size': (900, 1600),
 
     # Augmentation
@@ -42,7 +42,7 @@ numC_Trans = 64
 
 model = dict(
     type='BEVDet_Render',
-    use_vq=False,
+    use_vq=True,
     img_backbone=dict(
         pretrained='torchvision://resnet50',
         type='ResNet',
@@ -77,24 +77,52 @@ model = dict(
         type='FPN_LSS',
         in_channels=numC_Trans * 8 + numC_Trans * 2,
         out_channels=256),
-    # swin_bev_encoder=dict(
-    #     type="VQEncoder",
-    #     img_size=128,
-    #     codebook_dim=1024,
-    # ),
-    # swin_bev_decoder=dict(
-    #     type="VQDecoder",
-    #     img_size=(128, 128),
-    #     num_patches=256,
-    #     codebook_dim=1024,
-    # ),
-    # vector_quantizer=dict(
-    #     type="VectorQuantizer",
-    #     n_e=1024,
-    #     e_dim=1024,
-    #     beta=0.25,
-    #     cosine_similarity=False,
-    # ),
+    # pts_bbox_head=dict(
+    #     type='CenterHead',
+    #     in_channels=256,
+    #     tasks=[
+    #         dict(num_class=10, class_names=['car', 'truck',
+    #                                         'construction_vehicle',
+    #                                         'bus', 'trailer',
+    #                                         'barrier',
+    #                                         'motorcycle', 'bicycle',
+    #                                         'pedestrian', 'traffic_cone']),
+    #     ],
+    #     common_heads=dict(
+    #         reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)),
+    #     share_conv_channel=64,
+    #     bbox_coder=dict(
+    #         type='CenterPointBBoxCoder',
+    #         pc_range=point_cloud_range[:2],
+    #         post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+    #         max_num=500,
+    #         score_threshold=0.1,
+    #         out_size_factor=8,
+    #         voxel_size=voxel_size[:2],
+    #         code_size=9),
+    #     separate_head=dict(
+    #         type='SeparateHead', init_bias=-2.19, final_kernel=3),
+    #     loss_cls=dict(type='GaussianFocalLoss', reduction='mean'),
+    #     loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
+    #     norm_bbox=True),
+    swin_bev_encoder=dict(
+        type="VQEncoder",
+        img_size=128,
+        codebook_dim=1024,
+    ),
+    swin_bev_decoder=dict(
+        type="VQDecoder",
+        img_size=(128, 128),
+        num_patches=256,
+        codebook_dim=1024,
+    ),
+    vector_quantizer=dict(
+        type="VectorQuantizer",
+        n_e=1024,
+        e_dim=1024,
+        beta=0.25,
+        cosine_similarity=False,
+    ),
     
     # model training and testing settings
     # train_cfg=dict(
