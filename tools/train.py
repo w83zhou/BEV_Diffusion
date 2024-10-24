@@ -274,6 +274,8 @@ def main():
         datasets.append(build_dataset(cfg.data.train))
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
+
+    # with torch.no_grad():
     train_model(
         model,
         datasets,
