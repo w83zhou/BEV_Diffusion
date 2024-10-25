@@ -845,12 +845,71 @@ class PointToMultiViewDepthFusion(PointToMultiViewDepth):
         return results
 
 
+# def imnormalize(img, mean, std, to_rgb=True):
+#     """Normalize an image with mean and std.
+
+#     Args:
+#         img (ndarray): Image to be normalized.
+#         mean (ndarray): The mean to be used for normalize.
+#         std (ndarray): The std to be used for normalize.
+#         to_rgb (bool): Whether to convert to rgb.
+
+#     Returns:
+#         ndarray: The normalized image.
+#     """
+#     img = img.copy().astype(np.float32)
+#     return imnormalize_(img, mean, std, to_rgb)
+
+
+# def imnormalize_(img, mean, std, to_rgb=True):
+#     """Inplace normalize an image with mean and std.
+
+#     Args:
+#         img (ndarray): Image to be normalized.
+#         mean (ndarray): The mean to be used for normalize.
+#         std (ndarray): The std to be used for normalize.
+#         to_rgb (bool): Whether to convert to rgb.
+
+#     Returns:
+#         ndarray: The normalized image.
+#     """
+#     # cv2 inplace normalization does not accept uint8
+#     assert img.dtype != np.uint8
+#     mean = np.float64(mean.reshape(1, -1))
+#     stdinv = 1 / np.float64(std.reshape(1, -1))
+#     if to_rgb:
+#         cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)  # inplace
+#     cv2.subtract(img, mean, img)  # inplace
+#     cv2.multiply(img, stdinv, img)  # inplace
+#     return img
+
 def mmlabNormalize(img):
     from mmcv.image.photometric import imnormalize
     mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
     to_rgb = True
     img = imnormalize(np.array(img), mean, std, to_rgb)
+    img = torch.tensor(img).float().permute(2, 0, 1).contiguous()
+    return img
+
+def imdenormalize(img, mean, std, to_bgr=False):
+    assert img.dtype != np.uint8
+    mean = mean.reshape(1, -1).astype(np.float64)
+    std = std.reshape(1, -1).astype(np.float64)
+    img = img.copy().astype(np.float32)
+    img = cv2.multiply(img, std)  # make a copy
+    cv2.add(img, mean, img)  # inplace
+    if to_bgr:
+        cv2.cvtColor(img, cv2.COLOR_RGB2BGR, img)  # inplace
+    return img
+
+def mmlabDeNormalize(img):
+    from mmcv.image.photometric import imdenormalize
+    mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
+    std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
+    to_bgr = False
+    img = img.permute(1, 2, 0).contiguous()
+    img = imdenormalize(np.array(img), mean, std, to_bgr)
     img = torch.tensor(img).float().permute(2, 0, 1).contiguous()
     return img
 
@@ -877,6 +936,7 @@ class PrepareImageInputs(object):
         self.is_train = is_train
         self.data_config = data_config
         self.normalize_img = mmlabNormalize
+        self.denormalize_img = mmlabDeNormalize
         self.sequential = sequential
         self.opencv_pp = opencv_pp
 
@@ -1102,7 +1162,14 @@ class PrepareImageInputs(object):
                 img = self.photo_metric_distortion(img, self.data_config['pmd'])
 
             canvas.append(np.array(img))
+            img_copy = img.copy()
+            norm = self.normalize_img(img_copy)
+            denorm = self.denormalize_img(norm)
+            from torchvision.transforms.functional import to_pil_image
+            a= to_pil_image(denorm)
+            a.save('./show_dir/test.jpg')
             imgs.append(self.normalize_img(img))
+            
 
             if self.sequential:
                 assert 'adjacent' in results

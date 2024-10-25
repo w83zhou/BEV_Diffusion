@@ -14,8 +14,7 @@ data_config = {
         'CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT',
         'CAM_BACK', 'CAM_BACK_RIGHT'
     ],
-    'Ncams':
-    6,
+    'Ncams':6,
     'input_size': (256, 704),
     # 'input_size': (64, 176),
     'src_size': (900, 1600),
@@ -77,24 +76,24 @@ model = dict(
         type='FPN_LSS',
         in_channels=numC_Trans * 8 + numC_Trans * 2,
         out_channels=256),
-    # swin_bev_encoder=dict(
-    #     type="VQEncoder",
-    #     img_size=128,
-    #     codebook_dim=1024,
-    # ),
-    # swin_bev_decoder=dict(
-    #     type="VQDecoder",
-    #     img_size=(128, 128),
-    #     num_patches=256,
-    #     codebook_dim=1024,
-    # ),
-    # vector_quantizer=dict(
-    #     type="VectorQuantizer",
-    #     n_e=1024,
-    #     e_dim=1024,
-    #     beta=0.25,
-    #     cosine_similarity=False,
-    # ),
+    swin_bev_encoder=dict(
+        type="VQEncoder",
+        img_size=128,
+        codebook_dim=1024,
+    ),
+    swin_bev_decoder=dict(
+        type="VQDecoder",
+        img_size=(128, 128),
+        num_patches=256,
+        codebook_dim=1024,
+    ),
+    vector_quantizer=dict(
+        type="VectorQuantizer",
+        n_e=1024,
+        e_dim=1024,
+        beta=0.25,
+        cosine_similarity=False,
+    ),
     
     # model training and testing settings
     # train_cfg=dict(
@@ -270,6 +269,6 @@ custom_hooks = [
 # fp16 = dict(loss_scale='dynamic')
 
 load_from = None
-
+validation_times = 4
 find_unused_parameters = True
 

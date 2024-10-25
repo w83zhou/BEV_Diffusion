@@ -55,8 +55,8 @@ class BEVControlNetConditioningEmbedding(nn.Module):
                 channel_in, channel_out, kernel_size=3, padding=1,
                 stride=(2, 1)))
         
-        #self.blocks.append(nn.AdaptiveAvgPool2d((32, 88)))
-        self.blocks.append(nn.AdaptiveAvgPool2d((8, 22)))
+        self.blocks.append(nn.AdaptiveAvgPool2d((32, 88)))
+        #self.blocks.append(nn.AdaptiveAvgPool2d((8, 22)))
 
         self.conv_out = zero_module(
             nn.Conv2d(
