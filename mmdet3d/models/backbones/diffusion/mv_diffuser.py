@@ -282,7 +282,6 @@ class MultiViewDiffuser(BaseDiffuser):
         #         text_encoder=self.text_encoder
         #     )
 
-
     def tokenize_captions(self, batch):
         # 
         # prompt_list = batch["prompt"]
@@ -323,6 +322,9 @@ class MultiViewDiffuser(BaseDiffuser):
 
     # @auto_fp16()
     def forward(self, batch):
+        self.vae.eval()
+        self.text_encoder.eval()
+
         ret_dict = self.tokenize_captions(batch)
         batch.update(ret_dict[0]) ## NOTE: we only take the first one in the list 
             
