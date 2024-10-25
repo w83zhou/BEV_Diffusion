@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from mmcv.runner import force_fp32
-
 from mmdet3d.ops.bev_pool_v2.bev_pool import TRTBEVPoolv2
 from mmdet.models import DETECTORS
 from .. import builder
@@ -320,62 +319,63 @@ class BEVDet_Render(CenterPoint):
 
             return losses
 
-    # def forward_test(self,
-    #                  points=None,
-    #                  img_metas=None,
-    #                  img_inputs=None,
-    #                  **kwargs):
-    #     """
-    #     Args:
-    #         points (list[torch.Tensor]): the outer list indicates test-time
-    #             augmentations and inner torch.Tensor should have a shape NxC,
-    #             which contains all points in the batch.
-    #         img_metas (list[list[dict]]): the outer list indicates test-time
-    #             augs (multiscale, flip, etc.) and the inner list indicates
-    #             images in a batch
-    #         img (list[torch.Tensor], optional): the outer
-    #             list indicates test-time augmentations and inner
-    #             torch.Tensor should have a shape NxCxHxW, which contains
-    #             all images in the batch. Defaults to None.
-    #     """
-    #     for var, name in [(img_inputs, 'img_inputs'),
-    #                       (img_metas, 'img_metas')]:
-    #         if not isinstance(var, list):
-    #             raise TypeError('{} must be a list, but got {}'.format(
-    #                 name, type(var)))
+    def forward_test(self,
+                     points=None,
+                     img_metas=None,
+                     img_inputs=None,
+                     **kwargs):
+        """
+        Args:
+            points (list[torch.Tensor]): the outer list indicates test-time
+                augmentations and inner torch.Tensor should have a shape NxC,
+                which contains all points in the batch.
+            img_metas (list[list[dict]]): the outer list indicates test-time
+                augs (multiscale, flip, etc.) and the inner list indicates
+                images in a batch
+            img (list[torch.Tensor], optional): the outer
+                list indicates test-time augmentations and inner
+                torch.Tensor should have a shape NxCxHxW, which contains
+                all images in the batch. Defaults to None.
+        """
+        for var, name in [(img_inputs, 'img_inputs'),
+                          (img_metas, 'img_metas')]:
+            if not isinstance(var, list):
+                raise TypeError('{} must be a list, but got {}'.format(
+                    name, type(var)))
+            
+        if not isinstance(img_inputs[0][0], list):
+            img_inputs = [img_inputs] if img_inputs is None else img_inputs
+            return self.simple_test(img_metas, img_inputs,
+                                    **kwargs)
+        else:
+            return self.aug_test(None, img_metas[0], img_inputs[0], **kwargs)
 
-    #     num_augs = len(img_inputs)
-    #     if num_augs != len(img_metas):
-    #         raise ValueError(
-    #             'num of augmentations ({}) != num of image meta ({})'.format(
-    #                 len(img_inputs), len(img_metas)))
+    def aug_test(self, points, img_metas, img=None, rescale=False):
+        """Test function without augmentaiton."""
+        assert False
 
-    #     if not isinstance(img_inputs[0][0], list):
-    #         img_inputs = [img_inputs] if img_inputs is None else img_inputs
-    #         points = [points] if points is None else points
-    #         return self.simple_test(points[0], img_metas[0], img_inputs[0],
-    #                                 **kwargs)
-    #     else:
-    #         return self.aug_test(None, img_metas[0], img_inputs[0], **kwargs)
-
-    # def aug_test(self, points, img_metas, img=None, rescale=False):
-    #     """Test function without augmentaiton."""
-    #     assert False
-
-    # def simple_test(self,
-    #                 points,
-    #                 img_metas,
-    #                 img=None,
-    #                 rescale=False,
-    #                 **kwargs):
-    #     """Test function without augmentaiton."""
-    #     img_feats, _, _ = self.extract_feat(
-    #         points, img=img, img_metas=img_metas, **kwargs)
-    #     bbox_list = [dict() for _ in range(len(img_metas))]
-    #     bbox_pts = self.simple_test_pts(img_feats, img_metas, rescale=rescale)
-    #     for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
-    #         result_dict['pts_bbox'] = pts_bbox
-    #     return bbox_list
+    def simple_test(self,
+                    img_metas,
+                    img=None,
+                    rescale=False,
+                    **kwargs):
+        """Test function without augmentaiton."""
+        img_feats, _, _ = self.extract_feat(
+            points=None, img=img, img_metas=img_metas, **kwargs)
+        # bbox_list = [dict() for _ in range(len(img_metas))]
+        # bbox_pts = self.simple_test_pts(img_feats, img_metas, rescale=rescale)
+        # for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+        #     result_dict['pts_bbox'] = pts_bbox
+        bev_feat = img_feats[0]
+        if self.use_vq:
+            bev_feats = self.swin_bev_encoder(bev_feat)
+            feats = self.pre_quant(bev_feats)
+            bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
+            bev_feat = self.swin_bev_decoder(bev_quant)
+        else:
+            bev_feat = self.middle_layer(bev_feat)
+        
+        return bev_feat
 
     # def forward_dummy(self,
     #                   points=None,

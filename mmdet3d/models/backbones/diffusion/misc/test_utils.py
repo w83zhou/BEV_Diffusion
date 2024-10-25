@@ -135,6 +135,45 @@ def build_pipe(cfg, device):
     # pipe.enable_model_cpu_offload()
     return pipe, weight_dtype
 
+def prepare_pipe(cfg, model, device='cuda'):
+    """Load the pipeline from the pretrained model.
+
+    Args:
+        cfg (_type_): _description_
+        model (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    weight_dtype = torch.float32
+
+    #### model ####
+    pipe_param = {
+        "vae": model.vae,
+        "unet": model.unet,
+        "controlnet": model.controlnet,
+    }
+
+    pipe_cls = load_module(cfg.model.pipe_module)
+    logging.info(f"Build pipeline with {pipe_cls}")
+    pipe = pipe_cls.from_pretrained(
+        cfg.model.pretrained_model_name_or_path,
+        **pipe_param,
+        safety_checker=None,
+        feature_extractor=None,  # since v1.5 has default, we need to override
+        torch_dtype=weight_dtype
+    )
+
+    # speed up diffusion process with faster scheduler and memory optimization
+    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+    # remove following line if xformers is not installed
+    if cfg.runner.enable_xformers_memory_efficient_attention:
+        pipe.enable_xformers_memory_efficient_attention()
+
+    pipe = pipe.to(device)
+    update_progress_bar_config(pipe, leave=False)
+
+    return pipe, weight_dtype
 
 def prepare_all(cfg, device='cuda', need_loader=True):
     assert cfg.resume_from_checkpoint is not None, "Please set model to load"

@@ -14,8 +14,7 @@ data_config = {
         'CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT',
         'CAM_BACK', 'CAM_BACK_RIGHT'
     ],
-    'Ncams':
-    6,
+    'Ncams':6,
     'input_size': (256, 704),
     # 'input_size': (64, 176),
     # 'input_size': (224, 400),

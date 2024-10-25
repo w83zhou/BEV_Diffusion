@@ -4,7 +4,7 @@ class_names = [
     'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
 ]
 dataset_type = 'NuScenesDataset'
-data_root = '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/'
+data_root = './data/nuscenes/'
 input_modality = dict(
     use_lidar=False,
     use_camera=True,
@@ -24,18 +24,18 @@ train_pipeline = [
             Ncams=6,
             input_size=(64, 176),
             src_size=(900, 1600),
-            resize=(-0.06, 0.11),
-            rot=(-5.4, 5.4),
-            flip=True,
+            resize=(0.0, 0.0),
+            rot=(0.0, 0.0),
+            flip=False,
             crop_h=(0.0, 0.0),
             resize_test=0.0)),
     dict(
         type='BEVAug',
         bda_aug_conf=dict(
-            rot_lim=(-22.5, 22.5),
-            scale_lim=(0.95, 1.05),
-            flip_dx_ratio=0.5,
-            flip_dy_ratio=0.5),
+            rot_lim=(0.0, 0.0),
+            scale_lim=(0.0, 0.0),
+            flip_dx_ratio=0.0,
+            flip_dy_ratio=0.0),
         classes=[
             'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
             'barrier', 'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
@@ -53,18 +53,18 @@ test_pipeline = [
             Ncams=6,
             input_size=(64, 176),
             src_size=(900, 1600),
-            resize=(-0.06, 0.11),
-            rot=(-5.4, 5.4),
-            flip=True,
+            resize=(0.0, 0.0),
+            rot=(0.0, 0.0),
+            flip=False,
             crop_h=(0.0, 0.0),
             resize_test=0.0)),
     dict(
         type='BEVAug',
         bda_aug_conf=dict(
-            rot_lim=(-22.5, 22.5),
-            scale_lim=(0.95, 1.05),
-            flip_dx_ratio=0.5,
-            flip_dy_ratio=0.5),
+            rot_lim=(0.0, 0.0),
+            scale_lim=(0.0, 0.0),
+            flip_dx_ratio=0.0,
+            flip_dy_ratio=0.0),
         classes=[
             'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
             'barrier', 'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
@@ -97,9 +97,8 @@ data = dict(
     workers_per_gpu=4,
     train=dict(
         type='NuScenesDataset',
-        data_root='/data/zwding/BEVDet/mmdetection3d/data/nuscenes/',
-        ann_file=
-        '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/bevdetv3-nuscenes_infos_train.pkl',
+        data_root='./data/nuscenes/',
+        ann_file='./data/nuscenes/bevdetv3-nuscenes_infos_train.pkl',
         pipeline=[
             dict(
                 type='PrepareImageInputs',
@@ -112,18 +111,18 @@ data = dict(
                     Ncams=6,
                     input_size=(64, 176),
                     src_size=(900, 1600),
-                    resize=(-0.06, 0.11),
-                    rot=(-5.4, 5.4),
-                    flip=True,
+                    resize=(0.0, 0.0),
+                    rot=(0.0, 0.0),
+                    flip=False,
                     crop_h=(0.0, 0.0),
                     resize_test=0.0)),
             dict(
                 type='BEVAug',
                 bda_aug_conf=dict(
-                    rot_lim=(-22.5, 22.5),
-                    scale_lim=(0.95, 1.05),
-                    flip_dx_ratio=0.5,
-                    flip_dy_ratio=0.5),
+                    rot_lim=(0.0, 0.0),
+                    scale_lim=(0.0, 0.0),
+                    flip_dx_ratio=0.0,
+                    flip_dy_ratio=0.0),
                 classes=[
                     'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
                     'barrier', 'motorcycle', 'bicycle', 'pedestrian',
@@ -148,8 +147,7 @@ data = dict(
     val=dict(
         type='NuScenesDataset',
         data_root='data/nuscenes/',
-        ann_file=
-        '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
+        ann_file='./data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
         pipeline=[
             dict(
                 type='PrepareImageInputs',
@@ -161,18 +159,18 @@ data = dict(
                     Ncams=6,
                     input_size=(64, 176),
                     src_size=(900, 1600),
-                    resize=(-0.06, 0.11),
-                    rot=(-5.4, 5.4),
-                    flip=True,
+                    resize=(0.0, 0.0),
+                    rot=(0.0, 0.0),
+                    flip=False,
                     crop_h=(0.0, 0.0),
                     resize_test=0.0)),
             dict(
                 type='BEVAug',
                 bda_aug_conf=dict(
-                    rot_lim=(-22.5, 22.5),
-                    scale_lim=(0.95, 1.05),
-                    flip_dx_ratio=0.5,
-                    flip_dy_ratio=0.5),
+                    rot_lim=(0.0, 0.0),
+                    scale_lim=(0.0, 0.0),
+                    flip_dx_ratio=0.0,
+                    flip_dy_ratio=0.0),
                 classes=[
                     'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
                     'barrier', 'motorcycle', 'bicycle', 'pedestrian',
@@ -197,8 +195,7 @@ data = dict(
     test=dict(
         type='NuScenesDataset',
         data_root='data/nuscenes/',
-        ann_file=
-        '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
+        ann_file='./data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
         pipeline=[
             dict(
                 type='PrepareImageInputs',
@@ -210,18 +207,18 @@ data = dict(
                     Ncams=6,
                     input_size=(64, 176),
                     src_size=(900, 1600),
-                    resize=(-0.06, 0.11),
-                    rot=(-5.4, 5.4),
-                    flip=True,
+                    resize=(0.0, 0.0),
+                    rot=(0.0, 0.0),
+                    flip=False,
                     crop_h=(0.0, 0.0),
                     resize_test=0.0)),
             dict(
                 type='BEVAug',
                 bda_aug_conf=dict(
-                    rot_lim=(-22.5, 22.5),
-                    scale_lim=(0.95, 1.05),
-                    flip_dx_ratio=0.5,
-                    flip_dy_ratio=0.5),
+                    rot_lim=(0.0, 0.0),
+                    scale_lim=(0.0, 0.0),
+                    flip_dx_ratio=0.0,
+                    flip_dy_ratio=0.0),
                 classes=[
                     'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
                     'barrier', 'motorcycle', 'bicycle', 'pedestrian',
@@ -287,9 +284,9 @@ data_config = dict(
     Ncams=6,
     input_size=(64, 176),
     src_size=(900, 1600),
-    resize=(-0.06, 0.11),
-    rot=(-5.4, 5.4),
-    flip=True,
+    resize=(0.0, 0.0),
+    rot=(0.0, 0.0),
+    flip=False,
     crop_h=(0.0, 0.0),
     resize_test=0.0)
 grid_config = dict(
@@ -301,6 +298,7 @@ voxel_size = [0.1, 0.1, 0.2]
 numC_Trans = 64
 model = dict(
     type='BEVDet_Render',
+    use_vq=False,
     img_backbone=dict(
         pretrained='torchvision://resnet50',
         type='ResNet',
@@ -348,10 +346,10 @@ model = dict(
         beta=0.25,
         cosine_similarity=False))
 bda_aug_conf = dict(
-    rot_lim=(-22.5, 22.5),
-    scale_lim=(0.95, 1.05),
-    flip_dx_ratio=0.5,
-    flip_dy_ratio=0.5)
+    rot_lim=(0.0, 0.0),
+    scale_lim=(0.0, 0.0),
+    flip_dx_ratio=0.0,
+    flip_dy_ratio=0.0)
 share_data_config = dict(
     type='NuScenesDataset',
     classes=[
@@ -377,18 +375,18 @@ test_data_config = dict(
                 Ncams=6,
                 input_size=(64, 176),
                 src_size=(900, 1600),
-                resize=(-0.06, 0.11),
-                rot=(-5.4, 5.4),
-                flip=True,
+                resize=(0.0, 0.0),
+                rot=(0.0, 0.0),
+                flip=False,
                 crop_h=(0.0, 0.0),
                 resize_test=0.0)),
         dict(
             type='BEVAug',
             bda_aug_conf=dict(
-                rot_lim=(-22.5, 22.5),
-                scale_lim=(0.95, 1.05),
-                flip_dx_ratio=0.5,
-                flip_dy_ratio=0.5),
+                rot_lim=(0.0, 0.0),
+                scale_lim=(0.0, 0.0),
+                flip_dx_ratio=0.0,
+                flip_dy_ratio=0.0),
             classes=[
                 'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
                 'barrier', 'motorcycle', 'bicycle', 'pedestrian',
@@ -397,8 +395,7 @@ test_data_config = dict(
             is_train=False),
         dict(type='Collect3D', keys=['img_inputs'])
     ],
-    ann_file=
-    '/data/zwding/BEVDet/mmdetection3d/data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
+    ann_file='./data/nuscenes/bevdetv3-nuscenes_infos_val.pkl',
     type='NuScenesDataset',
     classes=[
         'car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier',
@@ -424,5 +421,6 @@ runner = dict(type='EpochBasedRunner', max_epochs=12)
 custom_hooks = [
     dict(type='MEGVIIEMAHook', init_updates=10560, priority='NORMAL')
 ]
+validation_times = 4
 find_unused_parameters = True
 gpu_ids = [0]
