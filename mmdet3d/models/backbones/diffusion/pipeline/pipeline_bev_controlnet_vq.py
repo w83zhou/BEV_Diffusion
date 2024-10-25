@@ -39,10 +39,10 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
         super().__init__(
             vae,
             text_encoder,
-            tokenizer,
             unet,
             controlnet,
             scheduler,
+            tokenizer,
             safety_checker,
             feature_extractor,
             requires_safety_checker,
@@ -59,7 +59,7 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
     @torch.no_grad()
     def __call__(
         self,
-        #prompt: Union[str, List[str]],
+        prompt: Union[str, List[str]],
         image: torch.FloatTensor,
         camera_param: Union[torch.Tensor, None],
         height: int,
@@ -211,20 +211,23 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
             do_classifier_free_guidance = False
         ### done ###
 
+        if do_classifier_free_guidance and not guess_mode:
+            image = torch.cat([image] * 2)
+
         # if isinstance(self.controlnet, MultiControlNetModel) and isinstance(controlnet_conditioning_scale, float):
         #     controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(self.controlnet.nets)
 
-        # # 3. Encode input prompt
-        # # NOTE: here they use padding to 77, is this necessary?
-        # prompt_embeds = self._encode_prompt(
-        #     prompt,
-        #     device,
-        #     num_images_per_prompt,
-        #     do_classifier_free_guidance,
-        #     negative_prompt,
-        #     prompt_embeds=prompt_embeds,
-        #     negative_prompt_embeds=negative_prompt_embeds,
-        # )  # (2 * b, 77 + 1, 768)
+        # 3. Encode input prompt
+        # NOTE: here they use padding to 77, is this necessary?
+        prompt_embeds = self._encode_prompt(
+            prompt,
+            device,
+            num_images_per_prompt,
+            do_classifier_free_guidance,
+            negative_prompt,
+            prompt_embeds=prompt_embeds,
+            negative_prompt_embeds=negative_prompt_embeds,
+        )  # (2 * b, 77 + 1, 768)
 
         # 4. Prepare image
         # NOTE: if image is not tensor, there will be several process.
@@ -257,7 +260,6 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
             num_channels_latents,
             height,
             width,
-            #prompt_embeds.dtype,
             image.dtype,
             device,
             generator,
@@ -324,7 +326,7 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
                 encoder_hidden_states_with_cam = self.controlnet(
                     controlnet_latent_model_input,
                     controlnet_t,
-                    None,  # camera_param
+                    camera_param,  # camera_param
                     encoder_hidden_states=controlnet_prompt_embeds,
                     controlnet_cond=image,
                     conditioning_scale=controlnet_conditioning_scale,

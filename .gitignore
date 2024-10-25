@@ -139,4 +139,5 @@ BEVDet
 ckpts
 magicdrive-log
 pretrained
+./pretrained
 ./save_d
