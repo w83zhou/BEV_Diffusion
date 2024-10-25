@@ -262,15 +262,15 @@ class MultiViewDiffuser(BaseDiffuser):
         self.vae.to(dtype=self.weight_dtype)
         self.text_encoder.to(dtype=self.weight_dtype)
         self.unet.to(dtype=self.weight_dtype)
-        for name, mod in self.unet.trainable_module.items():
-            logging.debug(f"[MultiviewRunner] set {name} to fp32")
-            mod.to(dtype=torch.float32)
-            mod._original_forward = mod.forward
-            # autocast intermediate is necessary since others are fp16
-            mod.forward = torch.cuda.amp.autocast(
-                dtype=torch.float16)(mod.forward)
-            # we ensure output is always fp16
-            mod.forward = convert_outputs_to_fp16(mod.forward)
+        # for name, mod in self.unet.trainable_module.items():
+        #     logging.debug(f"[MultiviewRunner] set {name} to fp32")
+        #     mod.to(dtype=torch.float32)
+        #     mod._original_forward = mod.forward
+        #     # autocast intermediate is necessary since others are fp16
+        #     mod.forward = torch.cuda.amp.autocast(
+        #         dtype=torch.float16)(mod.forward)
+        #     # we ensure output is always fp16
+        #     mod.forward = convert_outputs_to_fp16(mod.forward)
 
         self.controlnet_unet.weight_dtype = self.weight_dtype
         self.controlnet_unet.unet_in_fp16 = self.cfg.runner.unet_in_fp16
@@ -281,7 +281,6 @@ class MultiViewDiffuser(BaseDiffuser):
         #         tokenizer=self.tokenizer,
         #         text_encoder=self.text_encoder
         #     )
-
 
     def tokenize_captions(self, batch):
         # 
@@ -323,6 +322,9 @@ class MultiViewDiffuser(BaseDiffuser):
 
     # @auto_fp16()
     def forward(self, batch):
+        self.vae.eval()
+        self.text_encoder.eval()
+
         ret_dict = self.tokenize_captions(batch)
         batch.update(ret_dict[0]) ## NOTE: we only take the first one in the list 
             

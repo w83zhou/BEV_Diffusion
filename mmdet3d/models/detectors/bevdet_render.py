@@ -101,6 +101,7 @@ class BEVDet_Render(CenterPoint):
         super(BEVDet_Render, self).__init__(**kwargs)
 
         self.bev_extractor = builder.build_detector(bev_extractor)
+        # self.bev_extractor.requires_grad_(False)
 
         # self.grid_mask = None if not use_grid_mask else \
         #     GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1,
