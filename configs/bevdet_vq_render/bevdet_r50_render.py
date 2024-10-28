@@ -187,7 +187,8 @@ test_pipeline = [
     #             with_label=False),
     #         dict(type='Collect3D', keys=['points', 'img_inputs'])
     #     ])
-    dict(type='Collect3D', keys=['img_inputs'])
+    # dict(type='Collect3D', keys=['img_inputs'])
+    dict(type='Collect3D', keys=['img_inputs', 'magicdrive_img_inputs'])
 ]
 
 input_modality = dict(
@@ -206,7 +207,8 @@ share_data_config = dict(
 
 test_data_config = dict(
     pipeline=test_pipeline,
-    ann_file=data_root + 'bevdetv3-nuscenes_infos_val.pkl'
+    # ann_file=data_root + 'bevdetv3-nuscenes_infos_val.pkl'
+    ann_file=data_root + 'bevdetv3-nuscenes_infos_train.pkl'
     )
 
 data = dict(
@@ -257,10 +259,16 @@ for key in ['train', 'val', 'test']:
 #     ),
 #     weight_decay=0.0001,
 # )
-optimizer = dict(type='AdamW', lr=2e-4, weight_decay=1e-07)
+# optimizer = dict(type='AdamW', lr=2e-4, weight_decay=1e-07)
+# optimizer_config = dict(grad_clip=dict(max_norm=5, norm_type=2))
+# lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=500, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
+# runner = dict(type="EpochBasedRunner", max_epochs=12)
+
+optimizer = dict(type='AdamW', lr=8e-5, weight_decay=1e-02)
 optimizer_config = dict(grad_clip=dict(max_norm=5, norm_type=2))
-lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=500, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
+lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=3000, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
 runner = dict(type="EpochBasedRunner", max_epochs=12)
+
 
 # custom_hooks = [
 #     dict(

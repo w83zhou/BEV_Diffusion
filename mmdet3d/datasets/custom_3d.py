@@ -431,6 +431,9 @@ class Custom3DDataset(Dataset):
         Returns:
             dict: Data dictionary of the corresponding index.
         """
+
+        idx = 0
+
         if self.test_mode:
             return self.prepare_test_data(idx)
         while True:

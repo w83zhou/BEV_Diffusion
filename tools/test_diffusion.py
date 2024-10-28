@@ -41,8 +41,8 @@ def convert_gt_image(gt_img):
     # gt_img = gt_img.permute(0, 1, 4, 2, 3)
     # gt_img is of shape bs f c h w
 
-    #ori_imgs = [to_pil_image(img_m11_to_01(img)) for img in gt_img[0]]
-    ori_imgs = [to_pil_image(mmlabDeNormalize(img)) for img in gt_img[0]]
+    ori_imgs = [to_pil_image(img_m11_to_01(img)) for img in gt_img[0]]
+    # ori_imgs = [to_pil_image(mmlabDeNormalize(img)) for img in gt_img[0]]
     return ori_imgs
 
 def parse_args():
@@ -142,6 +142,7 @@ def single_gpu_test(model,
                     data_loader,
                     cfg,
                     pipeline,
+                    weight_dtype,
                     save_vis=True,
                     out_dir=None,):
     """Test model with single gpu.
@@ -168,6 +169,8 @@ def single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     
     for i, data in enumerate(data_loader):
+
+
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
             
@@ -188,6 +191,7 @@ def single_gpu_test(model,
             camera_intrinsics,
             transformation_matrices
             ], dim=-1)  # Shape (B, 6, 3, 7)
+            camera_param = camera_param.to(weight_dtype)
 
             # Prompt
             batch_size = data['img_inputs'][0].shape[0]
@@ -202,13 +206,28 @@ def single_gpu_test(model,
                     captions.append(caption)
 
 
+
+            # import pickle
+            # with open('/home/yzhu/MagicDrive/magicdrive_val_processed_case_0.pickle', 'rb') as handle:
+            #     data = pickle.load(handle)
+            # result = data['bev_map_with_aux']
+            # camera_param = data['camera_param'].to(weight_dtype)
+            # captions = data['captions']
+
+            import pickle
+            with open('bev_diffusion_processed_camera_param_case_0.pickle', 'rb') as handle:
+                camera_param = pickle.load(handle)
+
             image = pipeline(
                 image=result,
                 camera_param=camera_param,
                 prompt=captions,
-                height=256, # bevdet takes 256 704
-                width=704,
+                # height=256, # bevdet takes 256 704
+                # width=704,
+                height=224, # bevdet takes 256 704
+                width=400,
                 generator=generator,
+                # bev_controlnet_kwargs=data['kwargs'],
                 **hydra_cfg.runner.pipeline_param,
             )
 
@@ -220,7 +239,9 @@ def single_gpu_test(model,
                     image_seq.append(img)
                 image = concat_6_views(image_seq)
                 image.save(os.path.join(out_dir, f"gen_{i}.png"))
-                gt_imgs = convert_gt_image(data['img_inputs'][0])
+                # gt_imgs = convert_gt_image(data['img_inputs'][0])
+                # gt_imgs = convert_gt_image(data['magicdrive_img_inputs'][0])
+                gt_imgs = convert_gt_image(data['pixel_values'][0])
                 gt_imgs = concat_6_views(gt_imgs)
                 gt_imgs.save(os.path.join(out_dir, f"gt_{i}.png"))
 
@@ -335,8 +356,9 @@ def main():
         args.save_vis=True
         if not os.path.exists(args.show_dir):  
              os.makedirs(args.show_dir)  
-        outputs = single_gpu_test(model, data_loader, cfg, pipeline, args.save_vis, args.show_dir)
-        #outputs = single_gpu_test(None, data_loader, cfg, None, args.save_vis, args.show_dir)
+        # outputs = single_gpu_test(model, data_loader, cfg, pipeline, args.save_vis, args.show_dir)
+        outputs = single_gpu_test(model, data_loader, cfg, pipeline, weight_dtype, args.save_vis, args.show_dir)
+
     else:
         assert distributed # not implemented yet
         model = MMDistributedDataParallel(

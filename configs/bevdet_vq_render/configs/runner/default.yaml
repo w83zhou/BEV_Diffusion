@@ -52,7 +52,9 @@ validation_show_box: false
 validation_seed_global: false
 
 pipeline_param:
-  guidance_scale: 2  # if > 1, enable classifier-free guidance
+  # guidance_scale: 2  # if > 1, enable classifier-free guidance
+  guidance_scale: 0  # if > 1, enable classifier-free guidance
+
   num_inference_steps: 20
   eta: 0.0
   controlnet_conditioning_scale: 1.0

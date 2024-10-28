@@ -332,6 +332,11 @@ class MultiViewDiffuser(BaseDiffuser):
 
         # Convert images to latent space
         pixel_values = rearrange(batch["pixel_values"], "b n c h w -> (b n) c h w")
+
+        # import pickle
+        # with open('bev_diffusion_train_processed_gt_case_0.pickle', 'rb') as handle:
+        #     pixel_values_val = pickle.load(handle)
+
         latents = self.vae.encode(
             pixel_values.to(
                 dtype=self.weight_dtype
@@ -344,6 +349,10 @@ class MultiViewDiffuser(BaseDiffuser):
         # # embed camera params, in (B, 6, 3, 7), out (B, 6, 189)
         # # camera_emb = self._embed_camera(batch["camera_param"])
         camera_param = batch["camera_param"].to(self.weight_dtype)
+
+        # import pickle
+        # with open('bev_diffusion_processed_camera_param_case_0.pickle', 'wb') as handle:
+        #     pickle.dump(camera_param.cpu(), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # Sample noise that we'll add to the latents
         noise = torch.randn_like(latents)

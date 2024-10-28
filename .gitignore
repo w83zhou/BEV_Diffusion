@@ -140,4 +140,7 @@ ckpts
 magicdrive-log
 pretrained
 ./pretrained
+save_d
 ./save_d
+show_dir
+./show_dir

@@ -228,14 +228,43 @@ def prepare_pipe(cfg, model, device='cuda'):
     Returns:
         _type_: _description_
     """
-    weight_dtype = torch.float32
+    # weight_dtype = torch.float32
+    weight_dtype = torch.float16
 
     #### model ####
     pipe_param = {
-        "vae": model.vae,
-        "unet": model.unet,
-        "controlnet": model.controlnet,
+        # "vae": model.vae,
+        "vae": model.vae.to(dtype=weight_dtype),
+        "text_encoder": model.text_encoder.to(dtype=weight_dtype),
+        "unet": model.unet.to(dtype=weight_dtype),
+        "controlnet": model.controlnet.to(dtype=weight_dtype),
+        "tokenizer": model.tokenizer,
     }
+
+
+
+    # pipe_param = {}
+
+    # model_cls = load_module(cfg.model.model_module)
+    # controlnet_path = os.path.join(
+    #     './magicdrive-log/SDv1.5mv-rawbox_2023-09-07_18-39_224x400', cfg.model.controlnet_dir)
+    # logging.info(f"Loading controlnet from {controlnet_path} with {model_cls}")
+    # controlnet = model_cls.from_pretrained(
+    #     controlnet_path, torch_dtype=weight_dtype)
+    # controlnet.eval()  # from_pretrained will set to eval mode by default
+    # pipe_param["controlnet"] = controlnet
+
+    # if hasattr(cfg.model, "unet_module"):
+    #     unet_cls = load_module(cfg.model.unet_module)
+    #     unet_path = os.path.join('./magicdrive-log/SDv1.5mv-rawbox_2023-09-07_18-39_224x400', cfg.model.unet_dir)
+    #     logging.info(f"Loading unet from {unet_path} with {unet_cls}")
+    #     unet = unet_cls.from_pretrained(
+    #         unet_path, torch_dtype=weight_dtype)
+    #     unet.eval()
+    #     pipe_param["unet"] = unet
+
+
+
 
     pipe_cls = load_module(cfg.model.pipe_module)
     logging.info(f"Build pipeline with {pipe_cls}")
