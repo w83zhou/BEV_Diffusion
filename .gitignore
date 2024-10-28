@@ -135,5 +135,12 @@ data/sunrgbd/OFFICIAL_SUNRGBD/
 mmdet3d/core/evaluation/waymo_utils/compute_detection_metrics_main
 
 
-#pretrain
-pretrained/
+BEVDet
+ckpts
+magicdrive-log
+pretrained
+./pretrained
+save_d
+./save_d
+show_dir
+./show_dir

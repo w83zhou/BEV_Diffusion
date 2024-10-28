@@ -16,6 +16,52 @@ class BEVControlNetConditioningEmbedding(nn.Module):
     model) to encode image-space conditions ... into feature maps ..."
     """
 
+    # def __init__(
+    #     self,
+    #     conditioning_embedding_channels: int = 320,
+    #     conditioning_size: Tuple[int, int, int] = (25, 200, 200),  # only use 25
+    #     block_out_channels: Tuple[int] = (32, 64, 128, 256),
+    # ):
+    #     super().__init__()
+    #     # input size   25, 200, 200
+    #     # output size 320,  28,  50
+
+    #     self.conv_in = nn.Conv2d(
+    #         conditioning_size[0],
+    #         block_out_channels[0],
+    #         kernel_size=3, padding=1)
+
+    #     self.blocks = nn.ModuleList([])
+
+    #     for i in range(len(block_out_channels) - 2):
+    #         channel_in = block_out_channels[i]
+    #         channel_out = block_out_channels[i + 1]
+    #         self.blocks.append(
+    #             nn.Conv2d(channel_in, channel_in, kernel_size=3, padding=1)
+    #         )
+    #         self.blocks.append(
+    #             nn.Conv2d(
+    #                 channel_in, channel_out, kernel_size=3, padding=(2, 1),
+    #                 stride=2))
+    #     channel_in = block_out_channels[-2]
+    #     channel_out = block_out_channels[-1]
+    #     self.blocks.append(
+    #         nn.Conv2d(channel_in, channel_in, kernel_size=3, padding=(2, 1))
+    #     )
+    #     self.blocks.append(
+    #         nn.Conv2d(
+    #             channel_in, channel_out, kernel_size=3, padding=(2, 1),
+    #             stride=(2, 1)))
+
+    #     self.conv_out = zero_module(
+    #         nn.Conv2d(
+    #             block_out_channels[-1],
+    #             conditioning_embedding_channels,
+    #             kernel_size=3,
+    #             padding=1,
+    #         )
+    #     )
+
     def __init__(
         self,
         conditioning_embedding_channels: int = 320,
@@ -55,8 +101,9 @@ class BEVControlNetConditioningEmbedding(nn.Module):
                 channel_in, channel_out, kernel_size=3, padding=1,
                 stride=(2, 1)))
         
-        self.blocks.append(nn.AdaptiveAvgPool2d((32, 88)))
-        #self.blocks.append(nn.AdaptiveAvgPool2d((8, 22)))
+        # self.blocks.append(nn.AdaptiveAvgPool2d((32, 88)))
+        # self.blocks.append(nn.AdaptiveAvgPool2d((8, 22)))
+        self.blocks.append(nn.AdaptiveAvgPool2d((28, 50)))
 
         self.conv_out = zero_module(
             nn.Conv2d(

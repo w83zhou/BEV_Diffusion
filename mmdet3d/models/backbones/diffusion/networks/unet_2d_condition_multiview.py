@@ -40,6 +40,8 @@ from .blocks import (
     BasicMultiviewTransformerBlock,
 )
 
+from mmcv.runner import BaseModule, auto_fp16
+
 
 class UNet2DConditionModelMultiview(UNet2DConditionModel):
     r"""
@@ -234,6 +236,9 @@ class UNet2DConditionModelMultiview(UNet2DConditionModel):
                     self._new_module[f"{name}.{k}"] = v
         self.trainable_state = trainable_state
 
+        # self.fp16_enabled = True
+
+
     @property
     def trainable_module(self) -> Dict[str, nn.Module]:
         if self.trainable_state == "all":
@@ -324,6 +329,7 @@ class UNet2DConditionModelMultiview(UNet2DConditionModel):
 
         return unet_2d_condition_multiview
 
+    # @auto_fp16()
     def forward(
         self,
         sample: torch.FloatTensor,

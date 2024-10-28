@@ -200,7 +200,7 @@ class BEVControlNetModel(ModelMixin, ConfigMixin):
             self.uncond_map = None
 
         # # BEV bbox embedder
-        # model_cls = load_module(bbox_embedder_cls)
+        # model_cls = load_module('mmdet3d.models.backbones.diffusion.networks.bbox_embedder.ContinuousBBoxWithTextEmbedding')
         # self.bbox_embedder = model_cls(**bbox_embedder_param)
 
         self.down_blocks = nn.ModuleList([])
@@ -282,6 +282,263 @@ class BEVControlNetModel(ModelMixin, ConfigMixin):
             use_linear_projection=use_linear_projection,
             upcast_attention=upcast_attention,
         )
+
+
+    # @register_to_config
+    # def __init__(
+    #     self,
+    #     in_channels: int = 4,
+    #     flip_sin_to_cos: bool = True,
+    #     freq_shift: int = 0,
+    #     down_block_types: Tuple[str] = (
+    #         "CrossAttnDownBlock2D",
+    #         "CrossAttnDownBlock2D",
+    #         "CrossAttnDownBlock2D",
+    #         "DownBlock2D",
+    #     ),
+    #     only_cross_attention: Union[bool, Tuple[bool]] = False,
+    #     block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
+    #     layers_per_block: int = 2,
+    #     downsample_padding: int = 1,
+    #     mid_block_scale_factor: float = 1,
+    #     act_fn: str = "silu",
+    #     norm_num_groups: Optional[int] = 32,
+    #     norm_eps: float = 1e-5,
+    #     cross_attention_dim: int = 1280,
+    #     attention_head_dim: Union[int, Tuple[int]] = 8,
+    #     use_linear_projection: bool = False,
+    #     class_embed_type: Optional[str] = None,
+    #     num_class_embeds: Optional[int] = None,
+    #     upcast_attention: bool = False,
+    #     resnet_time_scale_shift: str = "default",
+    #     projection_class_embeddings_input_dim: Optional[int] = None,
+    #     controlnet_conditioning_channel_order: str = "rgb",
+    #     conditioning_embedding_out_channels: Optional[Tuple[int]] = None,
+    #     # these two kwargs will be used in `self.config`
+    #     global_pool_conditions: bool = False,
+    #     # BEV params
+    #     uncond_cam_in_dim: Tuple[int, int] = (3, 7),
+    #     camera_in_dim: int = 189,
+    #     camera_out_dim: int = 768,  # same as word embeddings
+    #     map_embedder_cls: str = None,
+    #     map_embedder_param: dict = None,
+    #     map_size: Tuple[int, int, int] = None,
+    #     use_uncond_map: str = None,
+    #     drop_cond_ratio: float = 0.0,
+    #     drop_cam_num: int = 1,
+    #     drop_cam_with_box: bool = False,
+    #     cam_embedder_param: Optional[Dict] = None,
+    #     bbox_embedder_cls: str = None,
+    #     bbox_embedder_param: dict = None,
+    # ):
+    #     super().__init__()
+    #     logging.debug(
+    #         "[BEVControlNetModel] instantiating your own version of controlnet."
+    #     )
+
+    #     # Check inputs
+    #     if len(block_out_channels) != len(down_block_types):
+    #         raise ValueError(
+    #             f"Must provide the same number of `block_out_channels` as `down_block_types`. `block_out_channels`: {block_out_channels}. `down_block_types`: {down_block_types}."
+    #         )
+
+    #     if not isinstance(only_cross_attention, bool) and len(
+    #         only_cross_attention
+    #     ) != len(down_block_types):
+    #         raise ValueError(
+    #             f"Must provide the same number of `only_cross_attention` as `down_block_types`. `only_cross_attention`: {only_cross_attention}. `down_block_types`: {down_block_types}."
+    #         )
+
+    #     if not isinstance(
+    #             attention_head_dim, int) and len(attention_head_dim) != len(
+    #             down_block_types):
+    #         raise ValueError(
+    #             f"Must provide the same number of `attention_head_dim` as `down_block_types`. `attention_head_dim`: {attention_head_dim}. `down_block_types`: {down_block_types}."
+    #         )
+
+    #     # BEV camera
+    #     self.cam2token = nn.Linear(camera_in_dim, camera_out_dim)
+    #     # TODO: how to initilize this?
+    #     if uncond_cam_in_dim:
+    #         self.uncond_cam = nn.Embedding(
+    #             1, uncond_cam_in_dim[0] * uncond_cam_in_dim[1])
+    #         # the num of len-3 vectors. We use Fourier emb on len-3 vector.
+    #         self.uncond_cam_num = uncond_cam_in_dim[1]
+    #     self.drop_cond_ratio = drop_cond_ratio
+    #     self.drop_cam_num = drop_cam_num
+    #     self.drop_cam_with_box = drop_cam_with_box
+
+    #     # in 3, freq 4 -> embedder.out_dim = 27
+    #     self.cam_embedder = get_embedder(**cam_embedder_param)
+
+    #     # input
+    #     conv_in_kernel = 3
+    #     conv_in_padding = (conv_in_kernel - 1) // 2
+    #     self.conv_in = nn.Conv2d(
+    #         in_channels,
+    #         block_out_channels[0],
+    #         kernel_size=conv_in_kernel,
+    #         padding=conv_in_padding,
+    #     )
+
+    #     # time
+    #     time_embed_dim = block_out_channels[0] * 4
+
+    #     self.time_proj = Timesteps(
+    #         block_out_channels[0],
+    #         flip_sin_to_cos, freq_shift)
+    #     timestep_input_dim = block_out_channels[0]
+
+    #     self.time_embedding = TimestepEmbedding(
+    #         timestep_input_dim,
+    #         time_embed_dim,
+    #         act_fn=act_fn,
+    #     )
+
+    #     # class embedding
+    #     if class_embed_type is None and num_class_embeds is not None:
+    #         self.class_embedding = nn.Embedding(
+    #             num_class_embeds, time_embed_dim)
+    #     elif class_embed_type == "timestep":
+    #         self.class_embedding = TimestepEmbedding(
+    #             timestep_input_dim, time_embed_dim)
+    #     elif class_embed_type == "identity":
+    #         self.class_embedding = nn.Identity(time_embed_dim, time_embed_dim)
+    #     elif class_embed_type == "projection":
+    #         if projection_class_embeddings_input_dim is None:
+    #             raise ValueError(
+    #                 "`class_embed_type`: 'projection' requires `projection_class_embeddings_input_dim` be set"
+    #             )
+    #         # The projection `class_embed_type` is the same as the timestep `class_embed_type` except
+    #         # 1. the `class_labels` inputs are not first converted to sinusoidal embeddings
+    #         # 2. it projects from an arbitrary input dimension.
+    #         #
+    #         # Note that `TimestepEmbedding` is quite general, being mainly linear layers and activations.
+    #         # When used for embedding actual timesteps, the timesteps are first converted to sinusoidal embeddings.
+    #         # As a result, `TimestepEmbedding` can be passed arbitrary vectors.
+    #         self.class_embedding = TimestepEmbedding(
+    #             projection_class_embeddings_input_dim, time_embed_dim
+    #         )
+    #     else:
+    #         self.class_embedding = None
+
+    #     # control net conditioning embedding
+    #     if map_embedder_cls is None:
+    #         cond_embedder_cls = BEVControlNetConditioningEmbedding
+    #         embedder_param = {
+    #             "conditioning_size": map_size,
+    #             "block_out_channels": conditioning_embedding_out_channels,
+    #         }
+    #     else:
+    #         cond_embedder_cls = load_module(map_embedder_cls)
+    #         embedder_param = map_embedder_param
+    #     self.controlnet_cond_embedding = cond_embedder_cls(
+    #         conditioning_embedding_channels=block_out_channels[0],
+    #         **embedder_param,
+    #     )
+    #     logging.debug(
+    #         f"[BEVControlNetModel] map_embedder: {self.controlnet_cond_embedding}")
+
+    #     # uncond_map
+    #     if use_uncond_map is not None and drop_cond_ratio > 0:
+    #         if use_uncond_map == "negative1":
+    #             tmp = torch.ones(map_size)
+    #             self.register_buffer("uncond_map", -tmp)  # -1
+    #         elif use_uncond_map == "random":
+    #             tmp = torch.randn(map_size)
+    #             self.register_buffer("uncond_map", tmp)
+    #         elif use_uncond_map == "learnable":
+    #             tmp = nn.Parameter(torch.randn(map_size))
+    #             self.register_parameter("uncond_map", tmp)
+    #         else:
+    #             raise TypeError(f"Unknown map type: {use_uncond_map}.")
+    #     else:
+    #         self.uncond_map = None
+
+    #     # BEV bbox embedder
+    #     model_cls = load_module('mmdet3d.models.backbones.diffusion.networks.bbox_embedder.ContinuousBBoxWithTextEmbedding')
+    #     self.bbox_embedder = model_cls(**bbox_embedder_param)
+
+    #     self.down_blocks = nn.ModuleList([])
+    #     self.controlnet_down_blocks = nn.ModuleList([])
+
+    #     if isinstance(only_cross_attention, bool):
+    #         only_cross_attention = [
+    #             only_cross_attention] * len(down_block_types)
+
+    #     if isinstance(attention_head_dim, int):
+    #         attention_head_dim = (attention_head_dim,) * len(down_block_types)
+
+    #     # down
+    #     output_channel = block_out_channels[0]
+
+    #     controlnet_block = nn.Conv2d(
+    #         output_channel, output_channel, kernel_size=1)
+    #     controlnet_block = zero_module(controlnet_block)
+    #     self.controlnet_down_blocks.append(controlnet_block)
+
+    #     for i, down_block_type in enumerate(down_block_types):
+    #         input_channel = output_channel
+    #         output_channel = block_out_channels[i]
+    #         is_final_block = i == len(block_out_channels) - 1
+
+    #         down_block = get_down_block(
+    #             down_block_type,
+    #             num_layers=layers_per_block,
+    #             in_channels=input_channel,
+    #             out_channels=output_channel,
+    #             temb_channels=time_embed_dim,
+    #             add_downsample=not is_final_block,
+    #             resnet_eps=norm_eps,
+    #             resnet_act_fn=act_fn,
+    #             resnet_groups=norm_num_groups,
+    #             cross_attention_dim=cross_attention_dim,
+    #             attn_num_head_channels=attention_head_dim[i],
+    #             downsample_padding=downsample_padding,
+    #             use_linear_projection=use_linear_projection,
+    #             only_cross_attention=only_cross_attention[i],
+    #             upcast_attention=upcast_attention,
+    #             resnet_time_scale_shift=resnet_time_scale_shift,
+    #         )
+    #         self.down_blocks.append(down_block)
+
+    #         for _ in range(layers_per_block):
+    #             controlnet_block = nn.Conv2d(
+    #                 output_channel, output_channel, kernel_size=1
+    #             )
+    #             controlnet_block = zero_module(controlnet_block)
+    #             self.controlnet_down_blocks.append(controlnet_block)
+
+    #         if not is_final_block:
+    #             controlnet_block = nn.Conv2d(
+    #                 output_channel, output_channel, kernel_size=1
+    #             )
+    #             controlnet_block = zero_module(controlnet_block)
+    #             self.controlnet_down_blocks.append(controlnet_block)
+
+    #     # mid
+    #     mid_block_channel = block_out_channels[-1]
+
+    #     controlnet_block = nn.Conv2d(
+    #         mid_block_channel, mid_block_channel, kernel_size=1
+    #     )
+    #     controlnet_block = zero_module(controlnet_block)
+    #     self.controlnet_mid_block = controlnet_block
+
+    #     self.mid_block = UNetMidBlock2DCrossAttn(
+    #         in_channels=mid_block_channel,
+    #         temb_channels=time_embed_dim,
+    #         resnet_eps=norm_eps,
+    #         resnet_act_fn=act_fn,
+    #         output_scale_factor=mid_block_scale_factor,
+    #         resnet_time_scale_shift=resnet_time_scale_shift,
+    #         cross_attention_dim=cross_attention_dim,
+    #         attn_num_head_channels=attention_head_dim[-1],
+    #         resnet_groups=norm_num_groups,
+    #         use_linear_projection=use_linear_projection,
+    #         upcast_attention=upcast_attention,
+    #     )
+
 
     def _embed_camera(self, camera_param):
         """

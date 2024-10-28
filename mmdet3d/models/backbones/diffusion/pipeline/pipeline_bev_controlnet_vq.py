@@ -210,9 +210,8 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
             camera_param = self.controlnet.uncond_cam_param((batch_size, N_cam))
             do_classifier_free_guidance = False
         ### done ###
-
-        if do_classifier_free_guidance and not guess_mode:
-            image = torch.cat([image] * 2)
+        # if do_classifier_free_guidance and not guess_mode:
+        #     image = torch.cat([image] * 2)
 
         # if isinstance(self.controlnet, MultiControlNetModel) and isinstance(controlnet_conditioning_scale, float):
         #     controlnet_conditioning_scale = [controlnet_conditioning_scale] * len(self.controlnet.nets)
@@ -232,17 +231,18 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
         # 4. Prepare image
         # NOTE: if image is not tensor, there will be several process.
         assert not self.control_image_processor.config.do_normalize, "Your controlnet should not normalize the control image."
-        # image = self.prepare_image(
-        #     image=image,
-        #     width=width,
-        #     height=height,
-        #     batch_size=batch_size * num_images_per_prompt,
-        #     num_images_per_prompt=num_images_per_prompt,
-        #     device=device,
-        #     dtype=self.controlnet.dtype,
-        #     do_classifier_free_guidance=do_classifier_free_guidance,
-        #     guess_mode=guess_mode,
-        # )  # (2 * b, c_26, 200, 200)
+        image = self.prepare_image(
+            image=image,
+            width=width,
+            height=height,
+            batch_size=batch_size * num_images_per_prompt,
+            num_images_per_prompt=num_images_per_prompt,
+            device=device,
+            dtype=self.controlnet.dtype,
+            do_classifier_free_guidance=do_classifier_free_guidance,
+            guess_mode=guess_mode,
+        )  # (2 * b, c_26, 200, 200)
+        # image = image.to(dtype=self.controlnet.dtype)
         if use_zero_map_as_unconditional and do_classifier_free_guidance:
             # uncond in the front, cond in the tail
             _images = list(torch.chunk(image, 2))
@@ -260,7 +260,8 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
             num_channels_latents,
             height,
             width,
-            image.dtype,
+            # image.dtype,
+            prompt_embeds.dtype,
             device,
             generator,
             latents,  # will use if not None, otherwise will generate
@@ -284,14 +285,14 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
                 camera_param=camera_param,
                 image=_images[0],  # 0 is for unconditional
                 max_len=bbox_max_length,
-                #**bev_controlnet_kwargs,
+                # **bev_controlnet_kwargs,
                 bboxes_3d_data=None,
             )
             kwargs_with_uncond.pop("max_len", None)  # some do not take this.
             camera_param = kwargs_with_uncond.pop("camera_param")
             _images[0] = kwargs_with_uncond.pop("image")
             image = torch.cat(_images)
-            #bev_controlnet_kwargs = move_to(kwargs_with_uncond, self.device)
+            # bev_controlnet_kwargs = move_to(kwargs_with_uncond, self.device)
         ###### BEV end ######
 
         # 8. Denoising loop
@@ -315,10 +316,12 @@ class StableDiffusionBEVControlNetPipelineVQ(StableDiffusionBEVControlNetPipelin
                 if guess_mode and do_classifier_free_guidance:
                     # Infer ControlNet only for the conditional batch.
                     controlnet_latent_model_input = latents
-                    controlnet_prompt_embeds = None # prompt_embeds.chunk(2)[1]
+                    # controlnet_prompt_embeds = None # prompt_embeds.chunk(2)[1]
+                    controlnet_prompt_embeds = prompt_embeds.chunk(2)[1]
                 else:
                     controlnet_latent_model_input = latent_model_input
-                    controlnet_prompt_embeds = None # prompt_embeds
+                    # controlnet_prompt_embeds = None # prompt_embeds
+                    controlnet_prompt_embeds = prompt_embeds
                 controlnet_t = controlnet_t.repeat(len(controlnet_latent_model_input))
 
                 # fmt: off

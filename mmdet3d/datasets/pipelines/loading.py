@@ -13,6 +13,8 @@ from mmdet.datasets.pipelines import LoadAnnotations, LoadImageFromFile
 from ...core.bbox import LiDARInstance3DBoxes
 from ..builder import PIPELINES
 
+import torchvision
+
 
 @PIPELINES.register_module()
 class LoadOccGTFromFile(object):
@@ -936,9 +938,35 @@ class PrepareImageInputs(object):
         self.is_train = is_train
         self.data_config = data_config
         self.normalize_img = mmlabNormalize
-        self.denormalize_img = mmlabDeNormalize
+        # self.denormalize_img = mmlabDeNormalize
         self.sequential = sequential
         self.opencv_pp = opencv_pp
+
+        # magicdrive
+        final_dim = [224, 400]
+        resize_lim = [0.25, 0.25]
+        bot_pct_lim = [0.0, 0.0]
+        rand_flip = [0.0, 0.0]
+        rot_lim = [0.0, 0.0]
+        rand_flip = False
+        self.final_dim = final_dim
+        self.resize_lim = resize_lim
+        self.bot_pct_lim = bot_pct_lim
+        self.rand_flip = rand_flip
+        self.rot_lim = rot_lim
+
+
+        magicdrive_mean = 0.5
+        magicdrive_std = 0.5
+        self.magicdrive_mean = magicdrive_mean
+        self.magicdrive_std = magicdrive_std
+        self.magicdrive_compose = torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.Normalize(mean=magicdrive_mean, std=magicdrive_std),
+            ]
+        )
+
 
     def get_rot(self, h):
         return torch.Tensor([
@@ -1118,6 +1146,7 @@ class PrepareImageInputs(object):
             img = img[..., np.random.permutation(3)]
         return Image.fromarray(img.astype(np.uint8))
 
+
     def get_inputs(self, results, flip=None, scale=None):
         imgs = []
         sensor2egos = []
@@ -1128,6 +1157,9 @@ class PrepareImageInputs(object):
         cam_names = self.choose_cams()
         results['cam_names'] = cam_names
         canvas = []
+
+        # magicdrive_imgs = []
+
         for cam_name in cam_names:
             cam_data = results['curr']['cams'][cam_name]
             filename = cam_data['data_path']
@@ -1171,6 +1203,24 @@ class PrepareImageInputs(object):
             imgs.append(self.normalize_img(img))
             
 
+
+            # magicdrive
+            # magicdrive_img = Image.open(filename)
+            # magicdrive_resize, magicdrive_resize_dims, magicdrive_crop, magicdrive_flip, magicdrive_rotate = self.magicdrive_sample_augmentation()
+            # magicdrive_post_rot = torch.eye(2)
+            # magicdrive_post_tran = torch.zeros(2)
+            # magicdrive_new_img, magicdrive_rotation, magicdrive_translation = self.magicdrive_img_transform(
+            #     magicdrive_img,
+            #     magicdrive_post_rot,
+            #     magicdrive_post_tran,
+            #     resize=magicdrive_resize,
+            #     resize_dims=magicdrive_resize_dims,
+            #     crop=magicdrive_crop,
+            #     flip=magicdrive_flip,
+            #     rotate=magicdrive_rotate,
+            # )
+            # magicdrive_imgs.append(self.magicdrive_compose(magicdrive_new_img))
+
             if self.sequential:
                 assert 'adjacent' in results
                 for adj_info in results['adjacent']:
@@ -1212,6 +1262,8 @@ class PrepareImageInputs(object):
 
         imgs = torch.stack(imgs)
 
+        # magicdrive_imgs = torch.stack(magicdrive_imgs)
+
         sensor2egos = torch.stack(sensor2egos)
         ego2globals = torch.stack(ego2globals)
         intrins = torch.stack(intrins)
@@ -1220,8 +1272,99 @@ class PrepareImageInputs(object):
         results['canvas'] = canvas
         return (imgs, sensor2egos, ego2globals, intrins, post_rots, post_trans)
 
+
+    def magicdrive_sample_augmentation(self):
+        # W, H = results["ori_shape"]
+        H, W = self.data_config['src_size']
+        fH, fW = self.final_dim
+        # if self.is_train:
+        #     resize = np.random.uniform(*self.resize_lim)
+        #     resize_dims = (int(W * resize), int(H * resize))
+        #     newW, newH = resize_dims
+        #     crop_h = int((1 - np.random.uniform(*self.bot_pct_lim)) * newH) - fH
+        #     crop_w = int(np.random.uniform(0, max(0, newW - fW)))
+        #     crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
+        #     flip = False
+        #     if self.rand_flip and np.random.choice([0, 1]):
+        #         flip = True
+        #     rotate = np.random.uniform(*self.rot_lim)
+        # else:
+        resize = np.mean(self.resize_lim)
+        resize_dims = (int(W * resize), int(H * resize))
+        newW, newH = resize_dims
+        crop_h = int((1 - np.mean(self.bot_pct_lim)) * newH) - fH
+        crop_w = int(max(0, newW - fW) / 2)
+        crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
+        flip = False
+        rotate = 0
+        return resize, resize_dims, crop, flip, rotate
+
+
+    def magicdrive_img_transform(
+        self, img, rotation, translation, resize, resize_dims, crop, flip, rotate
+    ):
+        # adjust image
+        img = img.resize(resize_dims)
+        img = img.crop(crop)
+        if flip:
+            img = img.transpose(method=Image.FLIP_LEFT_RIGHT)
+        img = img.rotate(rotate)
+
+        # post-homography transformation
+        rotation *= resize
+        translation -= torch.Tensor(crop[:2])
+        if flip:
+            A = torch.Tensor([[-1, 0], [0, 1]])
+            b = torch.Tensor([crop[2] - crop[0], 0])
+            rotation = A.matmul(rotation)
+            translation = A.matmul(translation) + b
+        theta = rotate / 180 * np.pi
+        A = torch.Tensor(
+            [
+                [np.cos(theta), np.sin(theta)],
+                [-np.sin(theta), np.cos(theta)],
+            ]
+        )
+        b = torch.Tensor([crop[2] - crop[0], crop[3] - crop[1]]) / 2
+        b = A.matmul(-b) + b
+        rotation = A.matmul(rotation)
+        translation = A.matmul(translation) + b
+
+        return img, rotation, translation
+
+    def magicdrive_get_inputs(self, results):
+        cam_names = self.choose_cams()
+        magicdrive_imgs = []
+
+        for cam_name in cam_names:
+            cam_data = results['curr']['cams'][cam_name]
+            filename = cam_data['data_path']
+
+            # magicdrive
+            magicdrive_img = Image.open(filename)
+            magicdrive_resize, magicdrive_resize_dims, magicdrive_crop, magicdrive_flip, magicdrive_rotate = self.magicdrive_sample_augmentation()
+            magicdrive_post_rot = torch.eye(2)
+            magicdrive_post_tran = torch.zeros(2)
+            magicdrive_new_img, magicdrive_rotation, magicdrive_translation = self.magicdrive_img_transform(
+                magicdrive_img,
+                magicdrive_post_rot,
+                magicdrive_post_tran,
+                resize=magicdrive_resize,
+                resize_dims=magicdrive_resize_dims,
+                crop=magicdrive_crop,
+                flip=magicdrive_flip,
+                rotate=magicdrive_rotate,
+            )
+            magicdrive_imgs.append(self.magicdrive_compose(magicdrive_new_img))
+
+
+        magicdrive_imgs = torch.stack(magicdrive_imgs)
+
+        return (magicdrive_imgs, )
+
     def __call__(self, results):
         results['img_inputs'] = self.get_inputs(results)
+        results['magicdrive_img_inputs'] = self.magicdrive_get_inputs(results)
         return results
 
 

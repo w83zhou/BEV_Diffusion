@@ -29,6 +29,9 @@ import matplotlib.pyplot as plt
 import os
 import open3d as o3d
 from ..backbones.diffusion.mv_diffuser import MultiViewDiffuser
+from mmcv.runner import BaseModule, auto_fp16
+
+from mmdet3d.models.detectors.bevdet import BEVDet
 
 
 def gamma_func(mode="cosine"):
@@ -43,6 +46,29 @@ def gamma_func(mode="cosine"):
     else:
         raise NotImplementedError
     
+
+@DETECTORS.register_module()
+class BEV_Extractor(BEVDet):
+    def __init__(self,
+                 **kwargs):
+        super(BEV_Extractor, self).__init__(**kwargs)
+
+        # self.grid_mask = None if not use_grid_mask else \
+        #     GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1,
+        #             prob=0.7)
+        # self.img_view_transformer = builder.build_neck(img_view_transformer)
+        # if img_bev_encoder_neck and img_bev_encoder_backbone:
+        #     self.img_bev_encoder_backbone = \
+        #         builder.build_backbone(img_bev_encoder_backbone)
+        #     self.img_bev_encoder_neck = builder.build_neck(img_bev_encoder_neck)
+
+    def forward(self, points=None, img_metas=None, img_inputs=None, **kwargs):
+        img_feats, pts_feats, _ = self.extract_feat(
+            points, img=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
+
+        return img_feats, pts_feats, None
+
+
 @DETECTORS.register_module()
 class BEVDet_Render(CenterPoint):
     r"""BEVDet paradigm for multi-camera 3D object detection.
@@ -57,28 +83,33 @@ class BEVDet_Render(CenterPoint):
     """
 
     def __init__(self,
-                 img_view_transformer,
+                #  img_view_transformer,
                  #Diffusion
                  multi_view_diffuser_cfg,
-                 img_bev_encoder_backbone=None,
-                 img_bev_encoder_neck=None,
+                #  img_bev_encoder_backbone=None,
+                #  img_bev_encoder_neck=None,
                  # BEV encoder & decoder using swin transformer
                  swin_bev_encoder=None,
                  swin_bev_decoder=None,
                  # VQ-VAE
                  vector_quantizer=None,
-                 use_grid_mask=False,
+                #  use_grid_mask=False,
                  use_vq=False,
+                 bev_extractor=None,
                  **kwargs):
         super(BEVDet_Render, self).__init__(**kwargs)
-        self.grid_mask = None if not use_grid_mask else \
-            GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1,
-                     prob=0.7)
-        self.img_view_transformer = builder.build_neck(img_view_transformer)
-        if img_bev_encoder_neck and img_bev_encoder_backbone:
-            self.img_bev_encoder_backbone = \
-                builder.build_backbone(img_bev_encoder_backbone)
-            self.img_bev_encoder_neck = builder.build_neck(img_bev_encoder_neck)
+
+        self.bev_extractor = builder.build_detector(bev_extractor)
+        # self.bev_extractor.requires_grad_(False)
+
+        # self.grid_mask = None if not use_grid_mask else \
+        #     GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1,
+        #              prob=0.7)
+        # self.img_view_transformer = builder.build_neck(img_view_transformer)
+        # if img_bev_encoder_neck and img_bev_encoder_backbone:
+        #     self.img_bev_encoder_backbone = \
+        #         builder.build_backbone(img_bev_encoder_backbone)
+        #     self.img_bev_encoder_neck = builder.build_neck(img_bev_encoder_neck)
         
         self.use_vq = use_vq
 
@@ -110,6 +141,7 @@ class BEVDet_Render(CenterPoint):
 
         # Diffusion 
         self.multi_view_diffuser = MultiViewDiffuser(multi_view_diffuser_cfg)
+        self.multi_view_diffuser.prepare_device()
 
     def image_encoder(self, img, stereo=False):
         imgs = img
@@ -172,6 +204,7 @@ class BEVDet_Render(CenterPoint):
         pts_feats = None
         return (img_feats, pts_feats, depth)
 
+
     def forward_train(self,
                       points=None,
                       img_metas=None,
@@ -180,6 +213,7 @@ class BEVDet_Render(CenterPoint):
                       gt_labels=None,
                       gt_bboxes=None,
                       img_inputs=None,
+                      magicdrive_img_inputs=None,
                       proposals=None,
                       gt_bboxes_ignore=None,
                       **kwargs):
@@ -209,75 +243,87 @@ class BEVDet_Render(CenterPoint):
             dict: Losses of different branches.
         """
 
-        img_feats, pts_feats, _ = self.extract_feat(
-            points=None, img=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
-        
+        with torch.cuda.amp.autocast(enabled=False):
 
-        losses = dict()
+            # img_feats, pts_feats, _ = self.extract_feat(
+            #     points, img=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
+            
+            with torch.no_grad():
+                self.bev_extractor.eval()
+                img_feats, pts_feats, _ = self.bev_extractor(
+                    points, img_inputs=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
 
-        if self.use_vq:
-            # VQ stuff
-            bev_feats = self.swin_bev_encoder(img_feats[0])
-            feats = self.pre_quant(bev_feats)
-            bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
-            bev_vqfeat = self.swin_bev_decoder(bev_quant)
-            code_util = (self.code_age < self.vector_quantizer.dead_limit).sum() / self.code_age.numel()
-            code_uniformity = self.code_usage.topk(10)[0].sum() / self.code_usage.sum()
+            losses = dict()
 
-            losses.update(
-                {
-                "loss_emb": sum(emb_loss) * 10,
-                "code_util": code_util,
-                "code_uniformity": code_uniformity,
-                }
+            if self.use_vq:
+                # VQ stuff
+                bev_feats = self.swin_bev_encoder(img_feats[0])
+                feats = self.pre_quant(bev_feats)
+                bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
+                bev_vqfeat = self.swin_bev_decoder(bev_quant)
+                code_util = (self.code_age < self.vector_quantizer.dead_limit).sum() / self.code_age.numel()
+                code_uniformity = self.code_usage.topk(10)[0].sum() / self.code_usage.sum()
+
+                losses.update(
+                    {
+                    "loss_emb": sum(emb_loss) * 10,
+                    "code_util": code_util,
+                    "code_uniformity": code_uniformity,
+                    }
+                )
+                # VQ stuff end
+            else:
+                bev_vqfeat = self.middle_layer(img_feats[0])
+
+            # ## Start diffusion
+            camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
+            post_rotations = img_inputs[4] # (B, 6, 3, 3)
+            post_translations = img_inputs[5] # (B, 6, 3)
+            post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
+            transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
+
+            camera_param = torch.cat([
+            camera_intrinsics,
+            transformation_matrices
+            ], dim=-1)  # Shape (B, 6, 3, 7)
+
+            batch_size = img_inputs[0].shape[0]
+            prompt_list = []
+            for i in range(batch_size):
+                prompt_list.append([{'location': "boston-seaport",
+                    'description': "It is a good day."}])
+            diffuser_data_dict = dict(
+                # pixel_values=img_inputs[0],
+                pixel_values=magicdrive_img_inputs[0],
+
+                camera_param=camera_param,
+                bev_vqfeat = bev_vqfeat,
+                # hardcode prompt for now
+                prompt = prompt_list
             )
-            # VQ stuff end
-        else:
-            bev_vqfeat = self.middle_layer(img_feats[0])
 
-        # ## Start diffusion
-        camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
-        post_rotations = img_inputs[4] # (B, 6, 3, 3)
-        post_translations = img_inputs[5] # (B, 6, 3)
-        post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
-        transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
+            # with torch.cuda.amp.autocast(enabled=False):
+            diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
 
-        camera_param = torch.cat([
-        camera_intrinsics,
-        transformation_matrices
-        ], dim=-1)  # Shape (B, 6, 3, 7)
-
-        batch_size = img_inputs[0].shape[0]
-        prompt_list = []
-        for i in range(batch_size):
-            prompt_list.append([{'location': "boston-seaport",
-                'description': "It is a good day."}])
-        diffuser_data_dict = dict(
-            pixel_values=img_inputs[0],
-            camera_param=camera_param,
-            bev_vqfeat = bev_vqfeat,
-            # hardcode prompt for now
-            prompt = prompt_list
-        )
-        diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
-        ## End diffusion
+            ## End diffusion
 
 
-        # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
-        #                                     gt_labels_3d, img_metas,
-        #                                     gt_bboxes_ignore)
-        # losses.update(losses_pts)
+            # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
+            #                                     gt_labels_3d, img_metas,
+            #                                     gt_bboxes_ignore)
+            # losses.update(losses_pts)
 
-        losses.update({
-            "loss_diffuser": diffusion_results_loss['loss_diffuser'],
-        })
+            losses.update({
+                "loss_diffuser": diffusion_results_loss['loss_diffuser'],
+            })
 
-        return losses
+            return losses
 
     def forward_test(self,
                      points=None,
                      img_metas=None,
                      img_inputs=None,
+                     magicdrive_img_inputs=None,
                      **kwargs):
         """
         Args:
@@ -300,7 +346,7 @@ class BEVDet_Render(CenterPoint):
             
         if not isinstance(img_inputs[0][0], list):
             img_inputs = [img_inputs] if img_inputs is None else img_inputs
-            return self.simple_test(img_metas, img_inputs,
+            return self.simple_test(img_metas, img_inputs, magicdrive_img_inputs,
                                     **kwargs)
         else:
             return self.aug_test(None, img_metas[0], img_inputs[0], **kwargs)
@@ -311,26 +357,85 @@ class BEVDet_Render(CenterPoint):
 
     def simple_test(self,
                     img_metas,
-                    img=None,
+                    img_inputs=None,
+                    magicdrive_img_inputs=None,
                     rescale=False,
                     **kwargs):
         """Test function without augmentaiton."""
-        img_feats, _, _ = self.extract_feat(
-            points=None, img=img, img_metas=img_metas, **kwargs)
-        # bbox_list = [dict() for _ in range(len(img_metas))]
-        # bbox_pts = self.simple_test_pts(img_feats, img_metas, rescale=rescale)
-        # for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
-        #     result_dict['pts_bbox'] = pts_bbox
-        bev_feat = img_feats[0]
-        if self.use_vq:
-            bev_feats = self.swin_bev_encoder(bev_feat)
-            feats = self.pre_quant(bev_feats)
-            bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
-            bev_feat = self.swin_bev_decoder(bev_quant)
-        else:
-            bev_feat = self.middle_layer(bev_feat)
-        
-        return bev_feat
+        with torch.cuda.amp.autocast(enabled=False):
+
+            # img_feats, _, _ = self.extract_feat(
+            #     points=None, img=img, img_metas=img_metas, **kwargs)
+
+            img_feats, pts_feats, _ = self.bev_extractor(
+                points=None, img_inputs=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
+
+            # bbox_list = [dict() for _ in range(len(img_metas))]
+            # bbox_pts = self.simple_test_pts(img_feats, img_metas, rescale=rescale)
+            # for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
+            #     result_dict['pts_bbox'] = pts_bbox
+            bev_feat = img_feats[0]
+            if self.use_vq:
+                bev_feats = self.swin_bev_encoder(bev_feat)
+                feats = self.pre_quant(bev_feats)
+                bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
+                bev_feat = self.swin_bev_decoder(bev_quant)
+            else:
+                bev_feat = self.middle_layer(bev_feat)
+            
+
+            # ## Start diffusion
+            # camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
+            # post_rotations = img_inputs[4] # (B, 6, 3, 3)
+            # post_translations = img_inputs[5] # (B, 6, 3)
+            # post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
+            # transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
+
+            # camera_param = torch.cat([
+            # camera_intrinsics,
+            # transformation_matrices
+            # ], dim=-1)  # Shape (B, 6, 3, 7)
+
+            # batch_size = img_inputs[0].shape[0]
+            # prompt_list = []
+            # for i in range(batch_size):
+            #     prompt_list.append([{'location': "boston-seaport",
+            #         'description': "It is a good day."}])
+            # diffuser_data_dict = dict(
+            #     # pixel_values=img_inputs[0],
+            #     pixel_values=magicdrive_img_inputs[0],
+
+            #     camera_param=camera_param,
+            #     bev_vqfeat = bev_feat,
+            #     # hardcode prompt for now
+            #     prompt = prompt_list
+            # )
+
+            # # with torch.cuda.amp.autocast(enabled=False):
+            # diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
+
+            # ## End diffusion
+
+
+            # # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
+            # #                                     gt_labels_3d, img_metas,
+            # #                                     gt_bboxes_ignore)
+            # # losses.update(losses_pts)
+
+            # losses = dict()
+            # losses.update({
+            #     "loss_diffuser": diffusion_results_loss['loss_diffuser'],
+            # })
+
+            # return losses
+
+
+            # import pickle
+            # with open('bev_diffusion_train_processed_gt_case_0.pickle', 'wb') as handle:
+            #     pickle.dump(magicdrive_img_inputs[0].cpu(), handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+            return bev_feat
 
     # def forward_dummy(self,
     #                   points=None,

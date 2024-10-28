@@ -22,8 +22,11 @@ from .misc.common import (
     move_to,
     load_module,
     deepspeed_zero_init_disabled_context_manager,
+    convert_outputs_to_fp16,
 )
 from ...builder import BACKBONES
+from mmcv.runner import BaseModule, auto_fp16, wrap_fp16_model
+
 
 def append_dims(x, target_dims):
     """Appends dimensions to the end of a tensor until it has target_dims
@@ -203,13 +206,14 @@ class MultiViewDiffuser(BaseDiffuser):
         self.is_init = True  # make this module not affected by the init_weights().
         self.unet_in_fp16 = True
 
+        # self.fp16_enabled = False
+
     def _init_fixed_models(self, cfg):
         self.tokenizer = CLIPTokenizer.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="tokenizer")
         self.vae = AutoencoderKL.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="vae")
         self.noise_scheduler = DDPMScheduler.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="scheduler")
         self.text_encoder = CLIPTextModel.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="text_encoder")
 
-    def _init_trainable_models(self, cfg):
         # fmt: off
         unet = UNet2DConditionModel.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="unet")
         # fmt: on
@@ -217,13 +221,27 @@ class MultiViewDiffuser(BaseDiffuser):
         model_cls = load_module(cfg.model.unet_module)
         unet_param = OmegaConf.to_container(self.cfg.model.unet, resolve=True)
         self.unet = model_cls.from_unet_2d_condition(unet, **unet_param)
+        unet_path = os.path.join('magicdrive-log/SDv1.5mv-rawbox_2023-09-07_18-39_224x400', 'unet')
+        logging.info(f"Loading unet from {unet_path} with {self.unet}")
+        self.unet = self.unet.from_pretrained(
+            unet_path, torch_dtype=torch.float16)
+
+
+    def _init_trainable_models(self, cfg):
+        # fmt: off
+        unet = UNet2DConditionModel.from_pretrained(cfg.model.pretrained_model_name_or_path, subfolder="unet")
+        # fmt: on
+
+        # model_cls = load_module(cfg.model.unet_module)
+        # unet_param = OmegaConf.to_container(self.cfg.model.unet, resolve=True)
+        # self.unet = model_cls.from_unet_2d_condition(unet, **unet_param)
 
         model_cls = load_module(cfg.model.model_module)
         controlnet_param = OmegaConf.to_container(
             self.cfg.model.controlnet, resolve=True)
         self.controlnet = model_cls.from_unet(unet, **controlnet_param)
 
-        self.controlnet_unet = ControlnetUnetWrapper(self.controlnet, self.unet)
+        # self.controlnet_unet = ControlnetUnetWrapper(self.controlnet, self.unet)
 
     def _set_model_trainable_state(self, train=True):
         # set trainable status
@@ -231,10 +249,38 @@ class MultiViewDiffuser(BaseDiffuser):
         self.text_encoder.requires_grad_(False)
         self.controlnet.train(train)
         self.unet.requires_grad_(False)
-        for name, mod in self.unet.trainable_module.items():
-            logging.debug(
-                f"[MultiViewDiffuser] set {name} to requires_grad = True")
-            mod.requires_grad_(train)
+        # for name, mod in self.unet.trainable_module.items():
+        #     logging.debug(
+        #         f"[MultiViewDiffuser] set {name} to requires_grad = True")
+        #     mod.requires_grad_(train)
+
+    def prepare_device(self):
+        self.controlnet_unet = ControlnetUnetWrapper(self.controlnet, self.unet)
+
+        self.weight_dtype = torch.float16
+        # Move vae, unet and text_encoder to device and cast to weight_dtype
+        self.vae.to(dtype=self.weight_dtype)
+        self.text_encoder.to(dtype=self.weight_dtype)
+        self.unet.to(dtype=self.weight_dtype)
+        # for name, mod in self.unet.trainable_module.items():
+        #     logging.debug(f"[MultiviewRunner] set {name} to fp32")
+        #     mod.to(dtype=torch.float32)
+        #     mod._original_forward = mod.forward
+        #     # autocast intermediate is necessary since others are fp16
+        #     mod.forward = torch.cuda.amp.autocast(
+        #         dtype=torch.float16)(mod.forward)
+        #     # we ensure output is always fp16
+        #     mod.forward = convert_outputs_to_fp16(mod.forward)
+
+        self.controlnet_unet.weight_dtype = self.weight_dtype
+        self.controlnet_unet.unet_in_fp16 = self.cfg.runner.unet_in_fp16
+
+        # with torch.no_grad():
+        #     self.accelerator.unwrap_model(self.controlnet).prepare(
+        #         self.cfg,
+        #         tokenizer=self.tokenizer,
+        #         text_encoder=self.text_encoder
+        #     )
 
     def tokenize_captions(self, batch):
         # 
@@ -274,7 +320,11 @@ class MultiViewDiffuser(BaseDiffuser):
             output_dict.append(ret_dict)
         return output_dict
 
+    # @auto_fp16()
     def forward(self, batch):
+        self.vae.eval()
+        self.text_encoder.eval()
+
         ret_dict = self.tokenize_captions(batch)
         batch.update(ret_dict[0]) ## NOTE: we only take the first one in the list 
             
@@ -282,6 +332,11 @@ class MultiViewDiffuser(BaseDiffuser):
 
         # Convert images to latent space
         pixel_values = rearrange(batch["pixel_values"], "b n c h w -> (b n) c h w")
+
+        # import pickle
+        # with open('bev_diffusion_train_processed_gt_case_0.pickle', 'rb') as handle:
+        #     pixel_values_val = pickle.load(handle)
+
         latents = self.vae.encode(
             pixel_values.to(
                 dtype=self.weight_dtype
@@ -294,6 +349,10 @@ class MultiViewDiffuser(BaseDiffuser):
         # # embed camera params, in (B, 6, 3, 7), out (B, 6, 189)
         # # camera_emb = self._embed_camera(batch["camera_param"])
         camera_param = batch["camera_param"].to(self.weight_dtype)
+
+        # import pickle
+        # with open('bev_diffusion_processed_camera_param_case_0.pickle', 'wb') as handle:
+        #     pickle.dump(camera_param.cpu(), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # Sample noise that we'll add to the latents
         noise = torch.randn_like(latents)
@@ -333,12 +392,13 @@ class MultiViewDiffuser(BaseDiffuser):
         controlnet_image = batch["bev_vqfeat"].to(
             dtype=self.weight_dtype)
 
-        model_pred = self.process(
-            noisy_latents, timesteps, camera_param,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_hidden_states_uncond=encoder_hidden_states_uncond, 
-            controlnet_image=controlnet_image,
-        )
+        with torch.cuda.amp.autocast(enabled=True):
+            model_pred = self.process(
+                noisy_latents, timesteps, camera_param,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_hidden_states_uncond=encoder_hidden_states_uncond, 
+                controlnet_image=controlnet_image,
+            )
 
         # Get the target for loss depending on the prediction type
         if self.noise_scheduler.config.prediction_type == "epsilon":

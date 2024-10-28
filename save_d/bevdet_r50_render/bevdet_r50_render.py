@@ -22,7 +22,7 @@ train_pipeline = [
                 'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
             ],
             Ncams=6,
-            input_size=(64, 176),
+            input_size=(256, 704),
             src_size=(900, 1600),
             resize=(0.0, 0.0),
             rot=(0.0, 0.0),
@@ -40,7 +40,7 @@ train_pipeline = [
             'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
             'barrier', 'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
         ]),
-    dict(type='Collect3D', keys=['img_inputs'])
+    dict(type='Collect3D', keys=['img_inputs', 'magicdrive_img_inputs'])
 ]
 test_pipeline = [
     dict(
@@ -51,7 +51,7 @@ test_pipeline = [
                 'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
             ],
             Ncams=6,
-            input_size=(64, 176),
+            input_size=(256, 704),
             src_size=(900, 1600),
             resize=(0.0, 0.0),
             rot=(0.0, 0.0),
@@ -109,7 +109,7 @@ data = dict(
                         'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
                     ],
                     Ncams=6,
-                    input_size=(64, 176),
+                    input_size=(256, 704),
                     src_size=(900, 1600),
                     resize=(0.0, 0.0),
                     rot=(0.0, 0.0),
@@ -128,7 +128,8 @@ data = dict(
                     'barrier', 'motorcycle', 'bicycle', 'pedestrian',
                     'traffic_cone'
                 ]),
-            dict(type='Collect3D', keys=['img_inputs'])
+            dict(
+                type='Collect3D', keys=['img_inputs', 'magicdrive_img_inputs'])
         ],
         classes=[
             'car', 'truck', 'construction_vehicle', 'bus', 'trailer',
@@ -157,7 +158,7 @@ data = dict(
                         'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
                     ],
                     Ncams=6,
-                    input_size=(64, 176),
+                    input_size=(256, 704),
                     src_size=(900, 1600),
                     resize=(0.0, 0.0),
                     rot=(0.0, 0.0),
@@ -205,7 +206,7 @@ data = dict(
                         'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
                     ],
                     Ncams=6,
-                    input_size=(64, 176),
+                    input_size=(256, 704),
                     src_size=(900, 1600),
                     resize=(0.0, 0.0),
                     rot=(0.0, 0.0),
@@ -271,7 +272,7 @@ log_config = dict(
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './save_d/bevdet_r50_render'
-load_from = None
+load_from = './ckpts/bevdet-r50-bev-extractor.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0
@@ -282,7 +283,7 @@ data_config = dict(
         'CAM_BACK', 'CAM_BACK_RIGHT'
     ],
     Ncams=6,
-    input_size=(64, 176),
+    input_size=(256, 704),
     src_size=(900, 1600),
     resize=(0.0, 0.0),
     rot=(0.0, 0.0),
@@ -299,52 +300,42 @@ numC_Trans = 64
 model = dict(
     type='BEVDet_Render',
     use_vq=False,
-    img_backbone=dict(
-        pretrained='torchvision://resnet50',
-        type='ResNet',
-        depth=50,
-        num_stages=4,
-        out_indices=(2, 3),
-        frozen_stages=-1,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        norm_eval=False,
-        with_cp=False,
-        style='pytorch'),
-    img_neck=dict(
-        type='CustomFPN',
-        in_channels=[1024, 2048],
-        out_channels=256,
-        num_outs=1,
-        start_level=0,
-        out_ids=[0]),
-    img_view_transformer=dict(
-        type='LSSViewTransformer',
-        accelerate=True,
-        grid_config=dict(
-            x=[-51.2, 51.2, 0.8],
-            y=[-51.2, 51.2, 0.8],
-            z=[-5, 3, 8],
-            depth=[1.0, 60.0, 1.0]),
-        input_size=(64, 176),
-        in_channels=256,
-        out_channels=64,
-        downsample=16),
-    img_bev_encoder_backbone=dict(
-        type='CustomResNet', numC_input=64, num_channels=[128, 256, 512]),
-    img_bev_encoder_neck=dict(
-        type='FPN_LSS', in_channels=640, out_channels=256),
-    swin_bev_encoder=dict(type='VQEncoder', img_size=128, codebook_dim=1024),
-    swin_bev_decoder=dict(
-        type='VQDecoder',
-        img_size=(128, 128),
-        num_patches=256,
-        codebook_dim=1024),
-    vector_quantizer=dict(
-        type='VectorQuantizer',
-        n_e=1024,
-        e_dim=1024,
-        beta=0.25,
-        cosine_similarity=False))
+    bev_extractor=dict(
+        type='BEV_Extractor',
+        img_backbone=dict(
+            pretrained='torchvision://resnet50',
+            type='ResNet',
+            depth=50,
+            num_stages=4,
+            out_indices=(2, 3),
+            frozen_stages=-1,
+            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_eval=False,
+            with_cp=False,
+            style='pytorch'),
+        img_neck=dict(
+            type='CustomFPN',
+            in_channels=[1024, 2048],
+            out_channels=256,
+            num_outs=1,
+            start_level=0,
+            out_ids=[0]),
+        img_view_transformer=dict(
+            type='LSSViewTransformer',
+            accelerate=True,
+            grid_config=dict(
+                x=[-51.2, 51.2, 0.8],
+                y=[-51.2, 51.2, 0.8],
+                z=[-5, 3, 8],
+                depth=[1.0, 60.0, 1.0]),
+            input_size=(256, 704),
+            in_channels=256,
+            out_channels=64,
+            downsample=16),
+        img_bev_encoder_backbone=dict(
+            type='CustomResNet', numC_input=64, num_channels=[128, 256, 512]),
+        img_bev_encoder_neck=dict(
+            type='FPN_LSS', in_channels=640, out_channels=256)))
 bda_aug_conf = dict(
     rot_lim=(0.0, 0.0),
     scale_lim=(0.0, 0.0),
@@ -373,7 +364,7 @@ test_data_config = dict(
                     'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'
                 ],
                 Ncams=6,
-                input_size=(64, 176),
+                input_size=(256, 704),
                 src_size=(900, 1600),
                 resize=(0.0, 0.0),
                 rot=(0.0, 0.0),
@@ -418,9 +409,6 @@ lr_config = dict(
     warmup_ratio=0.3333333333333333,
     min_lr_ratio=0.001)
 runner = dict(type='EpochBasedRunner', max_epochs=12)
-custom_hooks = [
-    dict(type='MEGVIIEMAHook', init_updates=10560, priority='NORMAL')
-]
-validation_times = 4
+fp16 = dict(loss_scale='dynamic')
 find_unused_parameters = True
 gpu_ids = [0]

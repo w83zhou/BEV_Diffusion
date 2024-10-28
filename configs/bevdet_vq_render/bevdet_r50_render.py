@@ -17,6 +17,7 @@ data_config = {
     'Ncams':6,
     'input_size': (256, 704),
     # 'input_size': (64, 176),
+    # 'input_size': (224, 400),
     'src_size': (900, 1600),
 
     # Augmentation
@@ -42,58 +43,61 @@ numC_Trans = 64
 model = dict(
     type='BEVDet_Render',
     use_vq=False,
-    img_backbone=dict(
-        pretrained='torchvision://resnet50',
-        type='ResNet',
-        depth=50,
-        num_stages=4,
-        out_indices=(2, 3),
-        frozen_stages=-1,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        norm_eval=False,
-        with_cp=False, # Had problems using ckpt when using multiple GPUs
-        style='pytorch'),
-    img_neck=dict(
-        type='CustomFPN',
-        in_channels=[1024, 2048],
-        out_channels=256,
-        num_outs=1,
-        start_level=0,
-        out_ids=[0]),
-    img_view_transformer=dict(
-        type='LSSViewTransformer',
-        accelerate=True,
-        grid_config=grid_config,
-        input_size=data_config['input_size'],
-        in_channels=256,
-        out_channels=numC_Trans,
-        downsample=16),
-    img_bev_encoder_backbone=dict(
-        type='CustomResNet',
-        numC_input=numC_Trans,
-        num_channels=[numC_Trans * 2, numC_Trans * 4, numC_Trans * 8]),
-    img_bev_encoder_neck=dict(
-        type='FPN_LSS',
-        in_channels=numC_Trans * 8 + numC_Trans * 2,
-        out_channels=256),
-    swin_bev_encoder=dict(
-        type="VQEncoder",
-        img_size=128,
-        codebook_dim=1024,
+    bev_extractor=dict(
+        type='BEV_Extractor',
+        img_backbone=dict(
+            pretrained='torchvision://resnet50',
+            type='ResNet',
+            depth=50,
+            num_stages=4,
+            out_indices=(2, 3),
+            frozen_stages=-1,
+            norm_cfg=dict(type='BN', requires_grad=True),
+            norm_eval=False,
+            with_cp=False, # Had problems using ckpt when using multiple GPUs
+            style='pytorch'),
+        img_neck=dict(
+            type='CustomFPN',
+            in_channels=[1024, 2048],
+            out_channels=256,
+            num_outs=1,
+            start_level=0,
+            out_ids=[0]),
+        img_view_transformer=dict(
+            type='LSSViewTransformer',
+            accelerate=True,
+            grid_config=grid_config,
+            input_size=data_config['input_size'],
+            in_channels=256,
+            out_channels=numC_Trans,
+            downsample=16),
+        img_bev_encoder_backbone=dict(
+            type='CustomResNet',
+            numC_input=numC_Trans,
+            num_channels=[numC_Trans * 2, numC_Trans * 4, numC_Trans * 8]),
+        img_bev_encoder_neck=dict(
+            type='FPN_LSS',
+            in_channels=numC_Trans * 8 + numC_Trans * 2,
+            out_channels=256),
     ),
-    swin_bev_decoder=dict(
-        type="VQDecoder",
-        img_size=(128, 128),
-        num_patches=256,
-        codebook_dim=1024,
-    ),
-    vector_quantizer=dict(
-        type="VectorQuantizer",
-        n_e=1024,
-        e_dim=1024,
-        beta=0.25,
-        cosine_similarity=False,
-    ),
+    # swin_bev_encoder=dict(
+    #     type="VQEncoder",
+    #     img_size=128,
+    #     codebook_dim=1024,
+    # ),
+    # swin_bev_decoder=dict(
+    #     type="VQDecoder",
+    #     img_size=(128, 128),
+    #     num_patches=256,
+    #     codebook_dim=1024,
+    # ),
+    # vector_quantizer=dict(
+    #     type="VectorQuantizer",
+    #     n_e=1024,
+    #     e_dim=1024,
+    #     beta=0.25,
+    #     cosine_similarity=False,
+    # ),
     
     # model training and testing settings
     # train_cfg=dict(
@@ -154,7 +158,7 @@ train_pipeline = [
     # dict(type='ObjectNameFilter', classes=class_names),
     # dict(type='DefaultFormatBundle3D', class_names=class_names),
     # dict(type='Collect3D', keys=['img_inputs', 'gt_bboxes_3d', 'gt_labels_3d'])
-    dict(type='Collect3D', keys=['img_inputs'])
+    dict(type='Collect3D', keys=['img_inputs', 'magicdrive_img_inputs'])
 ]
 
 test_pipeline = [
@@ -183,7 +187,8 @@ test_pipeline = [
     #             with_label=False),
     #         dict(type='Collect3D', keys=['points', 'img_inputs'])
     #     ])
-    dict(type='Collect3D', keys=['img_inputs'])
+    # dict(type='Collect3D', keys=['img_inputs'])
+    dict(type='Collect3D', keys=['img_inputs', 'magicdrive_img_inputs'])
 ]
 
 input_modality = dict(
@@ -202,7 +207,8 @@ share_data_config = dict(
 
 test_data_config = dict(
     pipeline=test_pipeline,
-    ann_file=data_root + 'bevdetv3-nuscenes_infos_val.pkl'
+    # ann_file=data_root + 'bevdetv3-nuscenes_infos_val.pkl'
+    ann_file=data_root + 'bevdetv3-nuscenes_infos_train.pkl'
     )
 
 data = dict(
@@ -253,22 +259,30 @@ for key in ['train', 'val', 'test']:
 #     ),
 #     weight_decay=0.0001,
 # )
-optimizer = dict(type='AdamW', lr=2e-4, weight_decay=1e-07)
+# optimizer = dict(type='AdamW', lr=2e-4, weight_decay=1e-07)
+# optimizer_config = dict(grad_clip=dict(max_norm=5, norm_type=2))
+# lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=500, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
+# runner = dict(type="EpochBasedRunner", max_epochs=12)
+
+optimizer = dict(type='AdamW', lr=8e-5, weight_decay=1e-02)
 optimizer_config = dict(grad_clip=dict(max_norm=5, norm_type=2))
-lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=500, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
+lr_config = dict(policy="CosineAnnealing", warmup="linear", warmup_iters=3000, warmup_ratio=1.0 / 3, min_lr_ratio=1e-3)
 runner = dict(type="EpochBasedRunner", max_epochs=12)
 
-custom_hooks = [
-    dict(
-        type='MEGVIIEMAHook',
-        init_updates=10560,
-        priority='NORMAL',
-    ),
-]
 
-# fp16 = dict(loss_scale='dynamic')
+# custom_hooks = [
+#     dict(
+#         type='MEGVIIEMAHook',
+#         init_updates=10560,
+#         priority='NORMAL',
+#     ),
+# ]
+
+fp16 = dict(loss_scale='dynamic')
 
 load_from = None
-validation_times = 4
+# load_from = '/harddisk/yzhu/MagicDrive/magicdrive-log/SDv1.5mv-rawbox_2023-09-07_18-39_224x400'
+load_from = './ckpts/bevdet-r50-bev-extractor.pth'
+
 find_unused_parameters = True
 
