@@ -892,7 +892,7 @@ def mmlabNormalize(img):
     img = torch.tensor(img).float().permute(2, 0, 1).contiguous()
     return img
 
-def imdenormalize(img, mean, std, to_bgr=False):
+def imdenormalize(img, mean, std, to_bgr=True):
     assert img.dtype != np.uint8
     mean = mean.reshape(1, -1).astype(np.float64)
     std = std.reshape(1, -1).astype(np.float64)
@@ -907,7 +907,7 @@ def mmlabDeNormalize(img):
     from mmcv.image.photometric import imdenormalize
     mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
     std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
-    to_bgr = False
+    to_bgr = True
     img = img.permute(1, 2, 0).contiguous()
     img = imdenormalize(np.array(img), mean, std, to_bgr)
     img = torch.tensor(img).float().permute(2, 0, 1).contiguous()
@@ -1162,12 +1162,12 @@ class PrepareImageInputs(object):
                 img = self.photo_metric_distortion(img, self.data_config['pmd'])
 
             canvas.append(np.array(img))
-            img_copy = img.copy()
-            norm = self.normalize_img(img_copy)
-            denorm = self.denormalize_img(norm)
-            from torchvision.transforms.functional import to_pil_image
-            a= to_pil_image(denorm)
-            a.save('./show_dir/test.jpg')
+            # img_copy = img.copy()
+            # norm = self.normalize_img(img_copy)
+            # denorm = self.denormalize_img(norm)
+            # from torchvision.transforms.functional import to_pil_image
+            # a= to_pil_image(denorm)
+            # a.save('./show_dir/test.jpg')
             imgs.append(self.normalize_img(img))
             
 

@@ -218,11 +218,12 @@ def single_gpu_test(model,
                 image_seq = []
                 for img in image:
                     image_seq.append(img)
-                image = concat_6_views(image_seq)
-                image.save(os.path.join(out_dir, f"gen_{i}.png"))
                 gt_imgs = convert_gt_image(data['img_inputs'][0])
                 gt_imgs = concat_6_views(gt_imgs)
                 gt_imgs.save(os.path.join(out_dir, f"gt_{i}.png"))
+                image = concat_6_views(image_seq)
+                image.save(os.path.join(out_dir, f"gen_{i}.png"))
+
 
 
         results.extend(result)
