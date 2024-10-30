@@ -256,24 +256,24 @@ class UNet2DConditionModelMultiview(UNet2DConditionModel):
                 params.append(param)
         return params
 
-    def train(self, mode=True):
-        if not isinstance(mode, bool):
-            raise ValueError("training mode is expected to be boolean")
-        # first, set all to false
-        super().train(False)
-        if mode:
-            # ensure gradient_checkpointing is usable, set training = True
-            for mod in self.modules():
-                if getattr(mod, "gradient_checkpointing", False):
-                    mod.training = True
-        # then, for some modules, we set according to `mode`
-        self.training = False
-        for mod in self.trainable_module.values():
-            if mod is self:
-                super().train(mode)
-            else:
-                mod.train(mode)
-        return self
+    # def train(self, mode=True):
+    #     if not isinstance(mode, bool):
+    #         raise ValueError("training mode is expected to be boolean")
+    #     # first, set all to false
+    #     super().train(False)
+    #     if mode:
+    #         # ensure gradient_checkpointing is usable, set training = True
+    #         for mod in self.modules():
+    #             if getattr(mod, "gradient_checkpointing", False):
+    #                 mod.training = True
+    #     # then, for some modules, we set according to `mode`
+    #     self.training = False
+    #     for mod in self.trainable_module.values():
+    #         if mod is self:
+    #             super().train(mode)
+    #         else:
+    #             mod.train(mode)
+    #     return self
 
     def enable_gradient_checkpointing(self, flag=None):
         """

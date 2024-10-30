@@ -143,6 +143,9 @@ class BEVDet_Render(CenterPoint):
         self.multi_view_diffuser = MultiViewDiffuser(multi_view_diffuser_cfg)
         self.multi_view_diffuser.prepare_device()
 
+        # self.train_extracted_bev_feature = {}
+
+
     def image_encoder(self, img, stereo=False):
         imgs = img
         B, N, C, imH, imW = imgs.shape
@@ -252,6 +255,18 @@ class BEVDet_Render(CenterPoint):
                 self.bev_extractor.eval()
                 img_feats, pts_feats, _ = self.bev_extractor(
                     points, img_inputs=img_inputs, img_metas=img_metas, **kwargs) # img_feats: (B, C, H, W) (4, 256, 128, 128)
+
+
+            # cur_sample_idx = img_metas[0]['sample_idx']
+            # self.train_extracted_bev_feature[cur_sample_idx] = img_feats[0].cpu().to(dtype=torch.float16).numpy()
+
+            # import pickle
+            # with open('train_extracted_bev_feature.pickle', 'wb') as handle:
+            #     pickle.dump(self.train_extracted_bev_feature, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # with open('train_extracted_bev_feature.pickle', "rb") as f:
+            #     load_train_extracted_bev_feature = pickle.load(f)
+
 
             losses = dict()
 
@@ -375,67 +390,70 @@ class BEVDet_Render(CenterPoint):
             # for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
             #     result_dict['pts_bbox'] = pts_bbox
             bev_feat = img_feats[0]
-            if self.use_vq:
-                bev_feats = self.swin_bev_encoder(bev_feat)
-                feats = self.pre_quant(bev_feats)
-                bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
-                bev_feat = self.swin_bev_decoder(bev_quant)
-            else:
-                bev_feat = self.middle_layer(bev_feat)
-            
-
-            # ## Start diffusion
-            # camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
-            # post_rotations = img_inputs[4] # (B, 6, 3, 3)
-            # post_translations = img_inputs[5] # (B, 6, 3)
-            # post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
-            # transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
-
-            # camera_param = torch.cat([
-            # camera_intrinsics,
-            # transformation_matrices
-            # ], dim=-1)  # Shape (B, 6, 3, 7)
-
-            # batch_size = img_inputs[0].shape[0]
-            # prompt_list = []
-            # for i in range(batch_size):
-            #     prompt_list.append([{'location': "boston-seaport",
-            #         'description': "It is a good day."}])
-            # diffuser_data_dict = dict(
-            #     # pixel_values=img_inputs[0],
-            #     pixel_values=magicdrive_img_inputs[0],
-
-            #     camera_param=camera_param,
-            #     bev_vqfeat = bev_feat,
-            #     # hardcode prompt for now
-            #     prompt = prompt_list
-            # )
-
-            # # with torch.cuda.amp.autocast(enabled=False):
-            # diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
-
-            # ## End diffusion
-
-
-            # # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
-            # #                                     gt_labels_3d, img_metas,
-            # #                                     gt_bboxes_ignore)
-            # # losses.update(losses_pts)
-
-            # losses = dict()
-            # losses.update({
-            #     "loss_diffuser": diffusion_results_loss['loss_diffuser'],
-            # })
-
-            # return losses
-
-
-            # import pickle
-            # with open('bev_diffusion_train_processed_gt_case_0.pickle', 'wb') as handle:
-            #     pickle.dump(magicdrive_img_inputs[0].cpu(), handle, protocol=pickle.HIGHEST_PROTOCOL)
-
 
             return bev_feat
+
+            # if self.use_vq:
+            #     bev_feats = self.swin_bev_encoder(bev_feat)
+            #     feats = self.pre_quant(bev_feats)
+            #     bev_quant, emb_loss, _ = self.vector_quantizer(feats, self.code_age, self.code_usage)
+            #     bev_feat = self.swin_bev_decoder(bev_quant)
+            # else:
+            #     bev_feat = self.middle_layer(bev_feat)
+            
+
+            # # ## Start diffusion
+            # # camera_intrinsics = img_inputs[3] # (B, 6, 3, 3)
+            # # post_rotations = img_inputs[4] # (B, 6, 3, 3)
+            # # post_translations = img_inputs[5] # (B, 6, 3)
+            # # post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
+            # # transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
+
+            # # camera_param = torch.cat([
+            # # camera_intrinsics,
+            # # transformation_matrices
+            # # ], dim=-1)  # Shape (B, 6, 3, 7)
+
+            # # batch_size = img_inputs[0].shape[0]
+            # # prompt_list = []
+            # # for i in range(batch_size):
+            # #     prompt_list.append([{'location': "boston-seaport",
+            # #         'description': "It is a good day."}])
+            # # diffuser_data_dict = dict(
+            # #     # pixel_values=img_inputs[0],
+            # #     pixel_values=magicdrive_img_inputs[0],
+
+            # #     camera_param=camera_param,
+            # #     bev_vqfeat = bev_feat,
+            # #     # hardcode prompt for now
+            # #     prompt = prompt_list
+            # # )
+
+            # # # with torch.cuda.amp.autocast(enabled=False):
+            # # diffusion_results_loss = self.multi_view_diffuser(diffuser_data_dict)
+
+            # # ## End diffusion
+
+
+            # # # losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
+            # # #                                     gt_labels_3d, img_metas,
+            # # #                                     gt_bboxes_ignore)
+            # # # losses.update(losses_pts)
+
+            # # losses = dict()
+            # # losses.update({
+            # #     "loss_diffuser": diffusion_results_loss['loss_diffuser'],
+            # # })
+
+            # # return losses
+
+
+            # # import pickle
+            # # with open('bev_diffusion_train_processed_gt_case_0.pickle', 'wb') as handle:
+            # #     pickle.dump(magicdrive_img_inputs[0].cpu(), handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+            # return bev_feat
 
     # def forward_dummy(self,
     #                   points=None,

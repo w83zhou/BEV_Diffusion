@@ -167,90 +167,111 @@ def single_gpu_test(model,
     dataset = data_loader.dataset
     hydra_cfg = cfg.model.multi_view_diffuser_cfg
     prog_bar = mmcv.ProgressBar(len(dataset))
+
+
+    train_extracted_bev_feature = {}
+    import pickle
+
     
     for i, data in enumerate(data_loader):
 
 
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
+
+            cur_sample_idx = data['img_metas'].data[0][0]['sample_idx']
+            # train_extracted_bev_feature[cur_sample_idx] = result.cpu().to(dtype=torch.float16).numpy()
+            cur_train_extracted_bev_feature = result.cpu().to(dtype=torch.float16)
+            torch.save(cur_train_extracted_bev_feature, f'./train_extracted_bev_feature/{cur_sample_idx}.bin')
+
+            # if i % 5000 == 0:
+            #     with open('train_extracted_bev_feature_{}.pickle'.format(i), 'wb') as handle:
+            #         pickle.dump(train_extracted_bev_feature, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
-            if hydra_cfg.seed is None:
-                generator = None
-            else:
-                generator = torch.Generator(device=data['img_inputs'][0].device).manual_seed(
-                    hydra_cfg.seed
-                )
+            # train_extracted_bev_feature = {}
+            
+        #     if hydra_cfg.seed is None:
+        #         generator = None
+        #     else:
+        #         generator = torch.Generator(device=data['img_inputs'][0].device).manual_seed(
+        #             hydra_cfg.seed
+        #         )
 
-            camera_intrinsics = data['img_inputs'][3] # (B, 6, 3, 3)
-            post_rotations = data['img_inputs'][4] # (B, 6, 3, 3)
-            post_translations = data['img_inputs'][5] # (B, 6, 3)
-            post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
-            transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
+        #     camera_intrinsics = data['img_inputs'][3] # (B, 6, 3, 3)
+        #     post_rotations = data['img_inputs'][4] # (B, 6, 3, 3)
+        #     post_translations = data['img_inputs'][5] # (B, 6, 3)
+        #     post_translations_expanded = post_translations.unsqueeze(-1)  # Shape (B, 6, 3, 1)  
+        #     transformation_matrices = torch.cat([post_rotations, post_translations_expanded], dim=-1)  # Shape (B, 6, 3, 4)  
 
-            camera_param = torch.cat([
-            camera_intrinsics,
-            transformation_matrices
-            ], dim=-1)  # Shape (B, 6, 3, 7)
-            camera_param = camera_param.to(weight_dtype)
+        #     camera_param = torch.cat([
+        #     camera_intrinsics,
+        #     transformation_matrices
+        #     ], dim=-1)  # Shape (B, 6, 3, 7)
+        #     camera_param = camera_param.to(weight_dtype)
 
-            # Prompt
-            batch_size = data['img_inputs'][0].shape[0]
-            prompt_list = []
-            for i in range(batch_size):
-                prompt_list.append([{'location': "boston-seaport",
-                    'description': "It is a good day."}])
-            for _prompt in prompt_list:
-                captions = []
-                for example in _prompt:
-                    caption = hydra_cfg.dataset.template.format(**example)
-                    captions.append(caption)
-
-
-
-            # import pickle
-            # with open('/home/yzhu/MagicDrive/magicdrive_val_processed_case_0.pickle', 'rb') as handle:
-            #     data = pickle.load(handle)
-            # result = data['bev_map_with_aux']
-            # camera_param = data['camera_param'].to(weight_dtype)
-            # captions = data['captions']
-
-            import pickle
-            with open('bev_diffusion_processed_camera_param_case_0.pickle', 'rb') as handle:
-                camera_param = pickle.load(handle)
-
-            image = pipeline(
-                image=result,
-                camera_param=camera_param,
-                prompt=captions,
-                # height=256, # bevdet takes 256 704
-                # width=704,
-                height=224, # bevdet takes 256 704
-                width=400,
-                generator=generator,
-                # bev_controlnet_kwargs=data['kwargs'],
-                **hydra_cfg.runner.pipeline_param,
-            )
-
-            if save_vis:
-                # bs = 1
-                image = image.images[0]
-                image_seq = []
-                for img in image:
-                    image_seq.append(img)
-                image = concat_6_views(image_seq)
-                image.save(os.path.join(out_dir, f"gen_{i}.png"))
-                # gt_imgs = convert_gt_image(data['img_inputs'][0])
-                # gt_imgs = convert_gt_image(data['magicdrive_img_inputs'][0])
-                gt_imgs = convert_gt_image(data['pixel_values'][0])
-                gt_imgs = concat_6_views(gt_imgs)
-                gt_imgs.save(os.path.join(out_dir, f"gt_{i}.png"))
+        #     # Prompt
+        #     batch_size = data['img_inputs'][0].shape[0]
+        #     prompt_list = []
+        #     for i in range(batch_size):
+        #         prompt_list.append([{'location': "boston-seaport",
+        #             'description': "It is a good day."}])
+        #     for _prompt in prompt_list:
+        #         captions = []
+        #         for example in _prompt:
+        #             caption = hydra_cfg.dataset.template.format(**example)
+        #             captions.append(caption)
 
 
-        results.extend(result)
+
+        #     # import pickle
+        #     # with open('/home/yzhu/MagicDrive/magicdrive_val_processed_case_0.pickle', 'rb') as handle:
+        #     #     data = pickle.load(handle)
+        #     # result = data['bev_map_with_aux']
+        #     # camera_param = data['camera_param'].to(weight_dtype)
+        #     # captions = data['captions']
+
+        #     import pickle
+        #     with open('bev_diffusion_processed_camera_param_case_0.pickle', 'rb') as handle:
+        #         camera_param = pickle.load(handle)
+
+        #     image = pipeline(
+        #         image=result,
+        #         camera_param=camera_param,
+        #         prompt=captions,
+        #         # height=256, # bevdet takes 256 704
+        #         # width=704,
+        #         height=224, # bevdet takes 256 704
+        #         width=400,
+        #         generator=generator,
+        #         # bev_controlnet_kwargs=data['kwargs'],
+        #         **hydra_cfg.runner.pipeline_param,
+        #     )
+
+        #     if save_vis:
+        #         # bs = 1
+        #         image = image.images[0]
+        #         image_seq = []
+        #         for img in image:
+        #             image_seq.append(img)
+        #         image = concat_6_views(image_seq)
+        #         image.save(os.path.join(out_dir, f"gen_{i}.png"))
+        #         # gt_imgs = convert_gt_image(data['img_inputs'][0])
+        #         # gt_imgs = convert_gt_image(data['magicdrive_img_inputs'][0])
+        #         gt_imgs = convert_gt_image(data['pixel_values'][0])
+        #         gt_imgs = concat_6_views(gt_imgs)
+        #         gt_imgs.save(os.path.join(out_dir, f"gt_{i}.png"))
+
+
+        # results.extend(result)
 
         batch_size = len(result)
         for _ in range(batch_size):
             prog_bar.update()
+
+    # import pickle
+    # with open('train_extracted_bev_feature.pickle', 'wb') as handle:
+    #     pickle.dump(train_extracted_bev_feature, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     return results
 
 def main():

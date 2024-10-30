@@ -324,6 +324,7 @@ class MultiViewDiffuser(BaseDiffuser):
     def forward(self, batch):
         self.vae.eval()
         self.text_encoder.eval()
+        self.unet.eval()
 
         ret_dict = self.tokenize_captions(batch)
         batch.update(ret_dict[0]) ## NOTE: we only take the first one in the list 
